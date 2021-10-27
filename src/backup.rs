@@ -1805,3 +1805,36 @@ fn attach_knob_to_field(
     }
     // }
 }
+
+fn attach_knob_to_field(
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut knob_query: Query<&mut LinearKnob<f32>>,
+    mut button_query: Query<&ButtonId, With<Button>>,
+    mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
+) {
+    for knob_id in released_on_knob_event_writer.iter() {
+        for mut knob in knob_query.iter_mut() {
+            if knob_id.0 == knob.id {
+                for button_id in button_query.iter_mut() {
+                    // if let &ButtonPhantomState::Moving = button_state.as_ref() {
+                    knob.bound_field = Some(button_id.0.to_owned());
+                    println!("attached to {:?}", knob.bound_field);
+                    // get field here
+                    let comparator = button_id.0.as_str();
+                    let value: f64 = match comparator {
+                        "globals.var1" => globals.var1.into(),
+                        "globals.var2" => globals.var2.into(),
+                        "globals.var3" => globals.var3.into(),
+                        "other_globals.var1" => other_globals.var1.into(),
+                        "other_globals.var2" => other_globals.var2.into(),
+                        "other_globals.var3" => other_globals.var3.into(),
+                        _ => 0.0,
+                    };
+                    knob.position = value as f32;
+                    knob.previous_position = value as f32;
+                }
+            }
+        }
+    }
+}

@@ -1,6 +1,6 @@
-use crate::util::{Globals, MyEnum, OtherGlobals};
+use crate::util::*;
 extern crate dashboard_derive;
-
+use bevy::prelude::*;
 use strum::IntoEnumIterator;
 // use bimap::BiMap;
 // use std::collections::HashMap;
@@ -115,4 +115,76 @@ macro_rules! add_to_dashboard_variables {
     (field_map, field_vec)
 
 }}
+}
+
+pub fn update_dashboard_variables(
+    mut globals: ResMut<Globals>,
+    mut other_globals: ResMut<OtherGlobals>,
+    mut events: EventReader<KnobRotated>,
+    mut changed_dash_var_event: EventWriter<ChangedDashVar>,
+) {
+    for KnobRotated(full_name, knob_position) in events.iter() {
+        // println!("field_name : {:?}", struct_info.0);
+
+        let vec_name = full_name
+            .split(".")
+            .map(|x| x.to_owned())
+            .collect::<Vec<String>>();
+
+        // the following code will need to change when implementing nested fields compatibility
+        let struct_name = vec_name.get(0).unwrap().clone();
+        let field_name = vec_name.get(1).unwrap().clone();
+        let ref_struct_name = struct_name.as_str();
+
+        let value_f64 = *knob_position as f64;
+
+        match ref_struct_name {
+            "globals" => {
+                globals.modify_field(&field_name, value_f64);
+                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
+            }
+
+            "other_globals" => {
+                other_globals.modify_field(&field_name, value_f64);
+                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
+            }
+            _ => {}
+        }
+    }
+}
+
+pub fn attach_knob_to_field(
+    mut commands: Commands,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
+    mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
+    // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
+) {
+    // for knob_id in released_on_knob_event_writer.iter() {
+    for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
+        for (button_entity, button_id) in button_query.iter_mut() {
+            knob.bound_field = Some(button_id.0.to_owned());
+            println!("attached to {:?}", knob.bound_field);
+            // get field here
+            let full_name = button_id.0.as_str();
+            let value: f64 = match full_name {
+                "globals.var1" => globals.var1.into(),
+                "globals.var2" => globals.var2.into(),
+                "globals.var3" => globals.var3.into(),
+                "other_globals.var1" => other_globals.var1.into(),
+                "other_globals.var2" => other_globals.var2.into(),
+                "other_globals.var3" => other_globals.var3.into(),
+                _ => 0.0,
+            };
+            knob.position = value as f32;
+            knob_transform.rotation = Quat::from_rotation_z(knob.position);
+            knob.previous_position = value as f32;
+            commands
+                .entity(button_entity)
+                .remove::<LinkingFieldToKnob>();
+            commands.entity(knob_entity).remove::<LinkingFieldToKnob>();
+        }
+    }
+    // }
 }
