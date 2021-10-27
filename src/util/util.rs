@@ -1,3 +1,5 @@
+#![feature(specialization)]
+
 use std::fmt::Debug;
 extern crate dashboard_derive;
 use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
@@ -19,24 +21,39 @@ use strum_macros::EnumIter;
 // use num::traits::Zero;
 // use std::any::Any;
 // use strum::IntoEnumIterator;
+use num::{integer::Integer, Float, Num, NumCast};
 
 //////////////////// LINEAR KNOB ///////////////////
 #[derive(Debug, Clone, PartialEq, Component)]
-pub struct LinearKnob<T: PartialOrd + Copy> {
+pub struct LinearKnob<T: Num + Copy> {
     pub position: T,
     pub previous_position: T,
-    pub bounds: (T, T),
-    pub previous_canvas_position: Vec2,
+    // pub bounds: (T, T),
+    // pub previous_canvas_position: Vec2,
     pub bound_field: Option<String>,
 
     pub id: KnobId,
-    pub radius: f32,
+    // pub radius: f32,
     // pub state: KnobState,
 }
 
-impl<T: PartialOrd + Copy> LinearKnob<T> {}
+impl<T: Num + Copy> LinearKnob<T> {
+    pub fn new(position: T) -> Self {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let new_id: u32 = rng.gen();
 
-impl<T: PartialOrd + Copy> KnobControl<T> for LinearKnob<T> {
+        LinearKnob {
+            position,
+            previous_position: position,
+            bound_field: None,
+            id: new_id,
+            // radius: 75.0 * 0.8,
+        }
+    }
+}
+
+impl<T: Num + Copy> KnobControl<T> for LinearKnob<T> {
     fn set_position(&mut self, value: T) {
         self.position = value;
     }
@@ -45,19 +62,43 @@ impl<T: PartialOrd + Copy> KnobControl<T> for LinearKnob<T> {
         self.position
     }
 }
+
+// impl KnobControl<i32> for LinearKnob<i32> {
+//     fn set_position(&mut self, value: i32) {
+//         self.position = value.into();
+//     }
+
+//     fn get_value(&self) -> i32 {
+//         self.position
+//     }
+// }
+
+// impl KnobControl<f32> for LinearKnob<f32> {
+//     fn set_position(&mut self, value: f32) {
+//         self.position = value.into();
+//     }
+
+//     fn get_value(&self) -> f32 {
+//         self.position
+//     }
+// }
+
+// impl KnobControl<f64> for LinearKnob<f64> {
+//     fn set_position(&mut self, value: f64) {
+//         self.position = value.into();
+//     }
+
+//     fn get_value(&self) -> f64 {
+//         self.position
+//     }
+// }
+
 //////////////////// LINEAR KNOB ///////////////////
 
-trait KnobControl<T: PartialOrd + Clone> {
+trait KnobControl<T: Num> {
     fn set_position(&mut self, value: T);
     fn get_value(&self) -> T;
 }
-
-// #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-// pub enum KnobState {
-//     Moving,
-//     Rotating,
-//     Idle,
-// }
 
 use serde::Serialize;
 #[derive(Copy, Clone, PartialEq, EnumIter, Debug, Reflect, Hash, Serialize, PartialOrd)]
@@ -89,16 +130,24 @@ impl Default for Cursor {
 pub struct Globals {
     pub var1: f32,
     pub var2: u16,
-    pub var3: MyEnum,
+    pub var3: i32,
 }
 
 #[derive(Reflect, Debug)]
 pub struct OtherGlobals {
-    pub var1: MyEnum,
+    pub var1: i64,
     pub var2: f64,
     pub var3: u8,
 }
 //////////// dummy structs that we want to track with the dashboard /////////////
+#[derive(Component)]
+pub struct KnobSprite {
+    pub id: KnobId,
+    pub position: Vec2,
+    pub previous_position: Vec2,
+    pub radius: f32,
+}
+
 #[derive(Component)]
 pub struct LinkingFieldToKnob;
 
@@ -127,15 +176,13 @@ pub type KnobId = u32;
 
 pub struct ClickedOnKnob(pub KnobId);
 pub struct ReleasedOnKnob(pub KnobId);
-
 pub struct SpawnKnobEvent(pub Vec2);
 pub struct KnobRotated(pub String, pub f32);
+pub struct SpawnFieldLabel(pub Vec<(FieldName, FieldValue)>);
+pub struct ChangedDashVar(pub FieldName, pub FieldValue);
 
 pub type FieldName = String;
 pub type FieldValue = f64;
-pub struct SpawnFieldLabel(pub Vec<(FieldName, FieldValue)>);
-
-pub struct ChangedDashVar(pub FieldName, pub FieldValue);
 
 pub struct ButtonMaterials {
     pub normal: Handle<ColorMaterial>,

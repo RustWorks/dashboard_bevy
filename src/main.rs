@@ -39,11 +39,11 @@ fn main() {
         .insert_resource(Globals {
             var1: 66.666f32,
             var2: 77u16,
-            var3: MyEnum::C,
+            var3: 55i32,
         })
         .insert_resource(Cursor::default())
         .insert_resource(OtherGlobals {
-            var1: MyEnum::A,
+            var1: -8i64,
             var2: 22f64,
             var3: 44u8,
         })
@@ -60,6 +60,7 @@ fn main() {
         .add_system(print_global)
         .add_system(attach_knob_to_field)
         .add_system(update_dashboard_labels)
+        // .add_system(cleanup_system::<KnobSprite>)
         .run();
 }
 
@@ -282,10 +283,17 @@ fn spawn_text_label(
 
 // }
 
+fn cleanup_system<T: Component>(mut commands: Commands, q: Query<Entity, With<T>>) {
+    for e in q.iter() {
+        commands.entity(e).despawn_recursive();
+    }
+}
+
 fn print_global(
     keyboard_input: Res<Input<KeyCode>>,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
+    query: Query<(&KnobSprite, &LinearKnob<f32>)>,
 ) {
     if keyboard_input.just_pressed(KeyCode::V) {
         println!("{:?}", globals);
@@ -313,11 +321,20 @@ fn update_dashboard_labels(
 
 fn modify_field_upon_knob_change(
     mut knob_rotated_event: EventWriter<KnobRotated>,
-    query: Query<&LinearKnob<f32>, With<RotatingKnob>>,
+    // query: Query<&LinearKnob<f64>, With<RotatingKnob>>,
+    mut query_set: QuerySet<(
+        QueryState<&LinearKnob<f64>, With<RotatingKnob>>,
+        QueryState<&LinearKnob<i64>, With<RotatingKnob>>,
+    )>,
 ) {
-    for knob in query.iter() {
+    for knob in query_set.q0().iter() {
         if let Some(field_name) = knob.bound_field.clone() {
-            knob_rotated_event.send(KnobRotated(field_name, knob.position))
+            knob_rotated_event.send(KnobRotated(field_name, knob.position as f32))
+        }
+    }
+    for knob in query_set.q1().iter() {
+        if let Some(field_name) = knob.bound_field.clone() {
+            knob_rotated_event.send(KnobRotated(field_name, knob.position as f32))
         }
     }
 }
@@ -332,9 +349,10 @@ fn check_mouse(
     mut released_on_knob_event_writer: EventWriter<ReleasedOnKnob>,
     button_query: Query<Entity, (With<Button>, With<MovingButton>)>,
     mut query_set: QuerySet<(
-        QueryState<(Entity, &Transform, &mut LinearKnob<f32>)>,
-        QueryState<(Entity, &mut LinearKnob<f32>), With<RotatingKnob>>,
-        QueryState<(Entity, &Transform, &mut LinearKnob<f32>), With<TranslatingKnob>>,
+        QueryState<(Entity, &Transform, &mut KnobSprite)>,
+        QueryState<(Entity, &mut LinearKnob<f64>), With<RotatingKnob>>,
+        QueryState<(Entity, &mut LinearKnob<i64>), With<RotatingKnob>>,
+        QueryState<(Entity, &Transform, &mut KnobSprite), With<TranslatingKnob>>,
     )>,
     // knob_query: Query<(Entity, &Transform, &mut LinearKnob<f32>)>,
     // mut moving_knob_query: Query<(Entity, &Transform, &mut LinearKnob<f32>), With<RotatingKnob>>,
@@ -347,14 +365,14 @@ fn check_mouse(
 
     // shared computations
     if mouse_just_pressed || mouse_just_released {
-        let mut knob_query = query_set.q0();
-        for (entity, transform, lin_knob) in knob_query.iter_mut() {
-            if cursor.position.distance(transform.translation.truncate()) < lin_knob.radius {
+        let mut knob_sorite_query = query_set.q0();
+        for (entity, transform, knob_sprite) in knob_sorite_query.iter_mut() {
+            if cursor.position.distance(transform.translation.truncate()) < knob_sprite.radius {
                 if mouse_just_pressed {
-                    clicked_on_knob = Some((entity, lin_knob.id));
+                    clicked_on_knob = Some((entity, knob_sprite.id));
                 }
                 if mouse_just_released {
-                    released_on_knob = Some((entity, lin_knob.id));
+                    released_on_knob = Some((entity, knob_sprite.id));
                 }
             }
         }
@@ -390,11 +408,18 @@ fn check_mouse(
             lin_knob.previous_position = lin_knob.position;
         }
 
+        // remove "RotatingKnob" tag on currently rotating knob
+        for (entity, mut lin_knob) in query_set.q2().iter_mut() {
+            // lin_knob.state = KnobState::Idle;
+            commands.entity(entity).remove::<RotatingKnob>();
+            lin_knob.previous_position = lin_knob.position;
+        }
+
         // remove "TranslatingKnob" tag on currently moving knob
-        for (entity, transform, mut lin_knob) in query_set.q2().iter_mut() {
+        for (entity, transform, mut knob_sprite) in query_set.q3().iter_mut() {
             // lin_knob.state = KnobState::Idle;
             commands.entity(entity).remove::<TranslatingKnob>();
-            lin_knob.previous_canvas_position = transform.translation.truncate();
+            knob_sprite.previous_position = transform.translation.truncate();
         }
     }
 }
@@ -415,19 +440,9 @@ fn spawn_knob(
 
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        let id = rng.gen();
+        let id: KnobId = rng.gen();
 
         let sprite_size = 75.0;
-        let knob: LinearKnob<f32> = LinearKnob {
-            position: 0.0,
-            bounds: (0.0, 1.0),
-            previous_canvas_position: mouse_position,
-            previous_position: 0.0,
-            id,
-            radius: sprite_size * scale * 0.8,
-            // state: KnobState::Idle,
-            bound_field: None,
-        };
 
         commands
             .spawn_bundle(SpriteBundle {
@@ -438,7 +453,13 @@ fn spawn_knob(
 
                 ..Default::default()
             })
-            .insert(knob);
+            // .insert(knob)
+            .insert(KnobSprite {
+                id,
+                position: mouse_position,
+                previous_position: mouse_position,
+                radius: 75.0 * 0.8,
+            });
 
         // let field_button_pipeline_handle = maps.pipeline_handles["fields_button"].clone();
 
@@ -465,18 +486,43 @@ fn spawn_knob(
 
 fn knob_action(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut LinearKnob<f32>)>,
+    mut knob_query: Query<(
+        Entity,
+        Option<&mut LinearKnob<f64>>,
+        Option<&mut LinearKnob<i64>>,
+    )>,
+    // mut knob_query: Query<(Entity, &mut LinearKnob<f64>)>,
+    // mut knob_query2: Query<(Entity, &mut LinearKnob<i64>)>,
+    sprite_knob_query: Query<(Entity, &KnobSprite)>,
     keyboard_input: Res<Input<KeyCode>>,
     mut clicked_on_knob_event_reader: EventReader<ClickedOnKnob>,
 ) {
     for event in clicked_on_knob_event_reader.iter() {
         let knob_id = event.0;
         // println!("HEERE: {:?}", knob_id);
-        for (entity, mut lin_knob) in query.iter_mut() {
-            if knob_id == lin_knob.id && keyboard_input.pressed(KeyCode::LShift) {
+        for (entity, lin_knob_opt, lin_knob_opt2) in knob_query.iter_mut() {
+            let no_s = !keyboard_input.pressed(KeyCode::LShift);
+            if let Some(lin_knob) = lin_knob_opt {
+                if knob_id == lin_knob.id && no_s {
+                    commands.entity(entity).insert(RotatingKnob);
+                }
+            }
+            if let Some(lin_knob) = lin_knob_opt2 {
+                if knob_id == lin_knob.id && no_s {
+                    commands.entity(entity).insert(RotatingKnob);
+                }
+            }
+        }
+
+        // for (entity, mut lin_knob) in knob_query2.iter_mut() {
+        //     if knob_id == lin_knob.id && !keyboard_input.pressed(KeyCode::LShift) {
+        //         commands.entity(entity).insert(RotatingKnob);
+        //     }
+        // }
+
+        for (entity, knob_sprite) in sprite_knob_query.iter() {
+            if knob_id == knob_sprite.id && keyboard_input.pressed(KeyCode::LShift) {
                 commands.entity(entity).insert(TranslatingKnob);
-            } else if knob_id == lin_knob.id {
-                commands.entity(entity).insert(RotatingKnob);
             }
         }
     }
@@ -485,21 +531,30 @@ fn knob_action(
 fn move_knob(
     // mut query: Query<(&mut Transform, &mut LinearKnob<f32>)>,
     mut query_set: QuerySet<(
-        QueryState<(&mut Transform, &mut LinearKnob<f32>), With<RotatingKnob>>,
-        QueryState<(&mut Transform, &mut LinearKnob<f32>), With<TranslatingKnob>>,
+        QueryState<(&mut Transform, &mut LinearKnob<i64>), With<RotatingKnob>>,
+        QueryState<(&mut Transform, &mut LinearKnob<f64>), With<RotatingKnob>>,
+        QueryState<(&mut Transform, &mut KnobSprite), With<TranslatingKnob>>,
     )>,
     cursor: Res<Cursor>,
 ) {
-    for (mut transform, lin_knob) in query_set.q1().iter_mut() {
+    for (mut transform, knob_sprite) in query_set.q2().iter_mut() {
         transform.translation =
-            (lin_knob.previous_canvas_position + cursor.pos_relative_to_click).extend(0.0);
+            (knob_sprite.previous_position + cursor.pos_relative_to_click).extend(0.0);
     }
 
     for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
-        let new_angle = lin_knob.previous_position
+        let new_angle = lin_knob.previous_position as f32
             - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
-        transform.rotation = Quat::from_rotation_z(new_angle);
-        lin_knob.position = new_angle;
+        transform.rotation = Quat::from_rotation_z(new_angle as f32);
+        lin_knob.position = new_angle as i64;
+        // println!("{:?}", new_angle);
+    }
+
+    for (mut transform, mut lin_knob) in query_set.q1().iter_mut() {
+        let new_angle = lin_knob.previous_position as f32
+            - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
+        transform.rotation = Quat::from_rotation_z(new_angle as f32);
+        lin_knob.position = new_angle as f64;
         // println!("{:?}", new_angle);
     }
 }

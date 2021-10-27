@@ -57,7 +57,7 @@ impl Globals {
         match field_name {
             "var1" => self.var1 = value_f64 as f32,
             "var2" => self.var2 = value_f64 as u16,
-            "var3" => self.var3 = value_f64.into(),
+            "var3" => self.var3 = value_f64 as i32,
             _ => {}
         }
     }
@@ -66,8 +66,8 @@ impl Globals {
 impl OtherGlobals {
     pub fn modify_field(&mut self, field_name: &str, value_f64: f64) {
         match field_name {
-            "var1" => self.var1 = value_f64.into(),
-            "var2" => self.var2 = value_f64.into(),
+            "var1" => self.var1 = value_f64 as i64,
+            "var2" => self.var2 = value_f64 as f64,
             "var3" => self.var3 = value_f64 as u8,
             _ => {}
         }
@@ -111,7 +111,7 @@ macro_rules! add_to_dashboard_variables {
                 field_vec.push((struct_name, f64_value));
             }
         }
-    )+
+    )*
     (field_map, field_vec)
 
 }}
@@ -157,34 +157,99 @@ pub fn attach_knob_to_field(
     mut commands: Commands,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
-    mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
+    knob_sprite_query: Query<(Entity, &KnobSprite), With<LinkingFieldToKnob>>,
+    // mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
     mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
     // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
 ) {
     // for knob_id in released_on_knob_event_writer.iter() {
-    for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
-        for (button_entity, button_id) in button_query.iter_mut() {
-            knob.bound_field = Some(button_id.0.to_owned());
-            println!("attached to {:?}", knob.bound_field);
-            // get field here
+    // for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
+    for (button_entity, button_id) in button_query.iter_mut() {
+        for (knob_sprite_entity, knob_sprite) in knob_sprite_query.iter() {
             let full_name = button_id.0.as_str();
-            let value: f64 = match full_name {
-                "globals.var1" => globals.var1.into(),
-                "globals.var2" => globals.var2.into(),
-                "globals.var3" => globals.var3.into(),
-                "other_globals.var1" => other_globals.var1.into(),
-                "other_globals.var2" => other_globals.var2.into(),
-                "other_globals.var3" => other_globals.var3.into(),
-                _ => 0.0,
-            };
-            knob.position = value as f32;
-            knob_transform.rotation = Quat::from_rotation_z(knob.position);
-            knob.previous_position = value as f32;
+
+            #[macro_export]
+            macro_rules! replace_knob {
+                    ($($yy:expr, $xx:ty),*) => {{
+                        match full_name {
+                            $(
+                                stringify!($yy) => {
+                                    let mut new_knob: LinearKnob<$xx> = LinearKnob::new($yy as $xx);
+                                    new_knob.bound_field = Some(button_id.0.to_owned());
+                                    new_knob.id = knob_sprite.id.clone();
+                                    println!("attached to {:?}", new_knob.bound_field);
+                                    commands.entity(knob_sprite_entity).insert(new_knob);
+
+                                }
+                            )*
+                            _ => {}
+                        };
+                    }}
+                }
+
+            replace_knob![
+                globals.var1,
+                f64,
+                globals.var2,
+                i64,
+                globals.var3,
+                i64,
+                other_globals.var1,
+                i64,
+                other_globals.var2,
+                f64,
+                other_globals.var3,
+                i64
+            ];
+
+            // cleaning up
             commands
                 .entity(button_entity)
                 .remove::<LinkingFieldToKnob>();
-            commands.entity(knob_entity).remove::<LinkingFieldToKnob>();
+            commands
+                .entity(knob_sprite_entity)
+                .remove::<LinkingFieldToKnob>();
         }
     }
-    // }
 }
+
+// pub fn attach_knob_to_field(
+//     mut commands: Commands,
+//     globals: Res<Globals>,
+//     other_globals: Res<OtherGlobals>,
+//     mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
+//     mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
+//     // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
+// ) {
+//     // for knob_id in released_on_knob_event_writer.iter() {
+//     for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
+//         for (button_entity, button_id) in button_query.iter_mut() {
+//             // get field here
+//             let full_name = button_id.0.as_str();
+//             let value: f64 = match full_name {
+//                 "globals.var1" => globals.var1.into(),
+//                 "globals.var2" => globals.var2.into(),
+//                 "globals.var3" => globals.var3.into(),
+//                 "other_globals.var1" => other_globals.var1.into(),
+//                 "other_globals.var2" => other_globals.var2.into(),
+//                 "other_globals.var3" => other_globals.var3.into(),
+//                 _ => 0.0,
+//             };
+
+//             knob.bound_field = Some(button_id.0.to_owned());
+//             knob.position = value as f32;
+//             knob_transform.rotation = Quat::from_rotation_z(knob.position);
+//             knob.previous_position = value as f32;
+
+//             // let new_knob = LinearKnob<>
+
+//             println!("attached to {:?}", knob.bound_field);
+//             // cleaning up
+//             commands
+//                 .entity(button_entity)
+//                 .remove::<LinkingFieldToKnob>();
+//             commands.entity(knob_entity).remove::<LinkingFieldToKnob>();
+//         }
+//     }
+//     // }
+// }
