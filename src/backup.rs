@@ -1773,3 +1773,35 @@ pub fn record_mouse_events_system(
         cursor_res.pos_relative_to_click = Vec2::ZERO;
     }
 }
+
+fn attach_knob_to_field(
+    mut commands: Commands,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut knob_query: Query<&mut LinearKnob<f32>>,
+    mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
+    // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
+) {
+    // for knob_id in released_on_knob_event_writer.iter() {
+    for mut knob in knob_query.iter_mut() {
+        for (entity, button_id) in button_query.iter_mut() {
+            knob.bound_field = Some(button_id.0.to_owned());
+            println!("attached to {:?}", knob.bound_field);
+            // get field here
+            let comparator = button_id.0.as_str();
+            let value: f64 = match comparator {
+                "globals.var1" => globals.var1.into(),
+                "globals.var2" => globals.var2.into(),
+                "globals.var3" => globals.var3.into(),
+                "other_globals.var1" => other_globals.var1.into(),
+                "other_globals.var2" => other_globals.var2.into(),
+                "other_globals.var3" => other_globals.var3.into(),
+                _ => 0.0,
+            };
+            knob.position = value as f32;
+            knob.previous_position = value as f32;
+            commands.entity(entity).remove::<LinkingFieldToKnob>();
+        }
+    }
+    // }
+}

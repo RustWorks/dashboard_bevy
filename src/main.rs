@@ -1,185 +1,27 @@
+mod macro_template;
+mod util;
+
+use util::*;
+
 use std::fmt::Debug;
 extern crate dashboard_derive;
 use bevy::{
     prelude::*,
+    // reflect::DynamicStruct,
     render::{
         camera::OrthographicProjection,
-        pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
+        // pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
+        pipeline::PipelineDescriptor,
         shader::ShaderStages,
     },
 };
 // use bimap::BiMap;
 use std::collections::HashMap;
 
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
-trait KnobControl<T: PartialOrd + Copy> {
-    fn set_position(&mut self, value: T);
-    fn get_value(&self) -> T;
-}
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-enum KnobState {
-    Moving,
-    Rotating,
-    Idle,
-}
-
-// sorting: sort_by(|x,y| x.partial_cmp(y))
-//////////////////// LINEAR KNOB ///////////////////
-#[derive(Debug, Clone, Copy, PartialEq, Component)]
-struct LinearKnob<T: PartialOrd + Copy> {
-    position: T,
-    previous_position: T,
-    bounds: (T, T),
-    previous_canvas_position: Vec2,
-
-    id: KnobId,
-    radius: f32,
-    state: KnobState,
-}
-
-impl<T: PartialOrd + Copy> LinearKnob<T> {}
-
-impl<T: PartialOrd + Copy> KnobControl<T> for LinearKnob<T> {
-    fn set_position(&mut self, value: T) {
-        self.position = value;
-    }
-
-    fn get_value(&self) -> T {
-        self.position
-    }
-}
-//////////////////// LINEAR KNOB ///////////////////
-
-use num::Float;
-//////////////////// LOGARITHMIC KNOB ///////////////////
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct LogarithmicKnob<U: Float> {
-    position: U,
-}
-
-impl<U: Float> LogarithmicKnob<U> {
-    fn new(val: U) -> Self {
-        Self { position: val }
-    }
-}
-impl<U: Float> KnobControl<U> for LogarithmicKnob<U> {
-    fn set_position(&mut self, value: U) {
-        self.position = value;
-    }
-
-    fn get_value(&self) -> U {
-        (self.position + num::one()).log2()
-    }
-}
-//////////////////// LOGARITHMIC KNOB ///////////////////
-
-#[derive(Debug, Clone, Component)]
-enum Knob<T: PartialOrd + Copy = f32, U: Float = f32> /* defaults to f32 */ {
-    Linear(LinearKnob<T>),
-    Logarithmic(LogarithmicKnob<U>),
-}
-
-use serde::Serialize;
-#[derive(Copy, Clone, PartialEq, EnumIter, Debug, Reflect, Hash, Serialize)]
-#[reflect(Hash, Serialize, PartialEq)]
-pub enum MyEnum {
-    A,
-    B,
-    C,
-}
-
-// impl Into<f64> for MyEnum {
-//     fn into(self) -> f64 {
-//         // let length = MyEnum::iter().count();
-//         let mut k = 0;
-//         let mut my_enum = Self::iter();
-
-//         // assumes non-empty enum
-//         let mut e = my_enum.next().unwrap();
-
-//         while e != self {
-//             e = my_enum.next().unwrap();
-//             k = k + 1;
-//         }
-//         k as f64
-//     }
-// }
-
-impl From<MyEnum> for f64 {
-    fn from(my: MyEnum) -> f64 {
-        // let length = MyEnum::iter().count();
-        let mut k = 0;
-        let mut my_enum_iter = MyEnum::iter();
-
-        // assumes non-empty enum
-        let mut e = my_enum_iter.next().unwrap();
-
-        while e != my {
-            e = my_enum_iter.next().unwrap();
-            k = k + 1;
-        }
-        k as f64
-    }
-}
-
-// TODO: the case where num < -0.5
-impl From<f64> for MyEnum {
-    fn from(num: f64) -> Self {
-        let mut my_enum_iter = MyEnum::iter();
-        let mut e = my_enum_iter.next().unwrap();
-        let mut e_f64: f64 = e.into();
-        while !(e_f64 > num - 0.5 && e_f64 < num + 0.5) {
-            e = my_enum_iter.next().unwrap();
-            e_f64 = e.into();
-        }
-        e
-    }
-}
-
-// #[derive(Debug, Clone, Reflect, Serialize, PartialEq, Hash)]
-// #[reflect(Hash, Serialize, PartialEq)]
-#[derive(Reflect, Debug)]
-pub struct Globals {
-    pub var1: f32,
-    pub var2: u16,
-    pub var3: MyEnum,
-}
-
-// #[derive(Debug, Clone, Reflect, Serialize, PartialEq, Hash)]
-// #[reflect(Hash, Serialize, PartialEq)]
-#[derive(Reflect, Debug)]
-pub struct OtherGlobals {
-    pub var1: MyEnum,
-    pub var2: f64,
-    pub var3: u8,
-}
-
-#[derive(Debug)]
-struct AllVars<'a> {
-    globals: &'a mut Globals,
-    other_globals: &'a mut OtherGlobals,
-}
-
-struct SpawnKnobEvent(Vec2);
-
-pub struct Maps {
-    pub mesh_handles: HashMap<&'static str, Handle<Mesh>>,
-    pub pipeline_handles: HashMap<&'static str, Handle<PipelineDescriptor>>,
-    // pub sounds: HashMap<&'static str, Handle<AudioSource>>,
-}
-
-impl Default for Maps {
-    fn default() -> Self {
-        Maps {
-            mesh_handles: HashMap::new(),
-            pipeline_handles: HashMap::new(),
-            // sounds: HashMap::new(),
-        }
-    }
-}
+// use num::traits::Zero;
+// use std::any::Any;
+// use strum::IntoEnumIterator;
+// use strum_macros::EnumIter;
 
 fn main() {
     App::new()
@@ -187,6 +29,9 @@ fn main() {
         .add_event::<SpawnKnobEvent>()
         .add_event::<ClickedOnKnob>()
         .add_event::<SpawnFieldLabel>()
+        .add_event::<KnobRotated>()
+        .add_event::<ReleasedOnKnob>()
+        .add_event::<ChangedDashVar>()
         .init_resource::<ButtonMaterials>()
         .insert_resource(Maps::default())
         .insert_resource(ClearColor(Color::hex("6e7f80").unwrap()))
@@ -202,7 +47,8 @@ fn main() {
             var3: 44u8,
         })
         .add_startup_system(setup.label("setup"))
-        .add_startup_system(dashboard_variables.after("setup"))
+        // .add_startup_system(dashboard_variables.after("setup"))
+        .add_system(update_dashboard_variables)
         .add_system(spawn_text_label)
         .add_system(spawn_knob)
         .add_system(check_mouse)
@@ -210,14 +56,13 @@ fn main() {
         .add_system(knob_action)
         .add_system(move_knob)
         .add_system(button_system)
+        .add_system(modify_field_upon_knob_change)
+        .add_system(print_global)
+        .add_system(attach_knob_to_field)
+        .add_system(update_dashboard_labels)
         .run();
 }
 
-#[derive(Component)]
-struct ColorText;
-
-#[derive(Component)]
-struct UiBoard;
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -225,6 +70,9 @@ fn setup(
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut maps: ResMut<Maps>,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut spawn_fields_event: EventWriter<SpawnFieldLabel>,
 ) {
     let vert = asset_server.load::<Shader, _>("shaders/vert.vert");
     let ends = asset_server.load::<Shader, _>("shaders/bounding_box.frag");
@@ -283,48 +131,37 @@ fn setup(
             ..Default::default()
         })
         .insert(UiBoard);
-}
 
-struct SpawnFieldLabel(Vec<(String, String)>);
-
-struct ButtonMaterials {
-    normal: Handle<ColorMaterial>,
-    hovered: Handle<ColorMaterial>,
-    pressed: Handle<ColorMaterial>,
-}
-
-impl FromWorld for ButtonMaterials {
-    fn from_world(world: &mut World) -> Self {
-        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
-        ButtonMaterials {
-            normal: materials.add(Color::rgba(0.8, 0.65, 0.5, 0.5).into()),
-            hovered: materials.add(Color::rgb(0.25, 0.25, 0.25).into()),
-            pressed: materials.add(Color::rgb(0.35, 0.75, 0.35).into()),
-        }
+    // setup variables on UiBoard
+    let (_field_map, field_vec): (HashMap<String, f64>, Vec<(String, f64)>) =
+        add_to_dashboard_variables!(globals, other_globals);
+    let mut v: Vec<(FieldName, FieldValue)> = Vec::new();
+    for (key, value) in field_vec.iter() {
+        v.push((key.clone(), *value));
     }
+
+    spawn_fields_event.send(SpawnFieldLabel(v));
 }
 
 fn button_system(
+    mut commands: Commands,
     button_materials: Res<ButtonMaterials>,
     mut interaction_query: Query<
-        (&Interaction, &mut Handle<ColorMaterial>, &Children),
+        (Entity, &Interaction, &mut Handle<ColorMaterial>, &Children),
         (Changed<Interaction>, With<Button>),
     >,
-    mut text_query: Query<&mut Text>,
 ) {
-    for (interaction, mut material, children) in interaction_query.iter_mut() {
-        let mut text = text_query.get_mut(children[0]).unwrap();
+    for (entity, interaction, mut material, _children) in interaction_query.iter_mut() {
         match *interaction {
             Interaction::Clicked => {
-                // text.sections[0].value = "".to_string();
                 *material = button_materials.pressed.clone();
+                // *button_phantom_state.as_mut() = ButtonPhantomState::Moving;
+                commands.entity(entity).insert(MovingButton);
             }
             Interaction::Hovered => {
-                // text.sections[0].value = "".to_string();
                 *material = button_materials.hovered.clone();
             }
             Interaction::None => {
-                // text.sections[0].value = "".to_string();
                 *material = button_materials.normal.clone();
             }
         }
@@ -356,7 +193,7 @@ fn spawn_text_label(
                         position_type: PositionType::Absolute,
                         size: Size::new(Val::Percent(90.0), Val::Px(50.0)),
                         position: Rect {
-                            bottom: Val::Px(height + offset),
+                            top: Val::Px(height + offset),
                             right: Val::Px(15.0),
                             left: Val::Px(15.0),
                             ..Default::default()
@@ -368,6 +205,7 @@ fn spawn_text_label(
                     material: materials.add(Color::rgba(0.8, 0.65, 0.5, 0.5).into()),
                     ..Default::default()
                 })
+                .insert(ButtonId(key.to_string()))
                 .id();
 
             commands.entity(ui_entity).push_children(&[button_entity]);
@@ -378,22 +216,20 @@ fn spawn_text_label(
                         align_self: AlignSelf::FlexEnd,
                         position_type: PositionType::Absolute,
                         position: Rect {
-                            bottom: Val::Percent(2.0),
+                            top: Val::Percent(2.0),
                             left: Val::Percent(2.0),
                             ..Default::default()
                         },
                         ..Default::default()
                     },
-                    // Use the `Text::with_section` constructor
+
                     text: Text::with_section(
-                        // Accepts a `String` or any type that converts into a `String`, such as `&str`
                         key,
                         TextStyle {
                             font: asset_server.load("fonts/Lekton-Regular.ttf"),
                             font_size: 50.0,
                             color: Color::NAVY,
                         },
-                        // Note: You can use `Default::default()` in place of the `TextAlignment`
                         TextAlignment {
                             horizontal: HorizontalAlign::Left,
                             ..Default::default()
@@ -404,28 +240,27 @@ fn spawn_text_label(
                 .insert(ColorText)
                 .id();
 
+            let value_string = format!("{:.5}", value.to_string());
             let values_entity = commands
                 .spawn_bundle(TextBundle {
                     style: Style {
                         align_self: AlignSelf::FlexEnd,
                         position_type: PositionType::Absolute,
                         position: Rect {
-                            bottom: Val::Percent(0.0),
+                            top: Val::Percent(0.0),
                             right: Val::Percent(2.0),
                             ..Default::default()
                         },
                         ..Default::default()
                     },
-                    // Use the `Text::with_section` constructor
+
                     text: Text::with_section(
-                        // Accepts a `String` or any type that converts into a `String`, such as `&str`
-                        value,
+                        value_string,
                         TextStyle {
                             font: asset_server.load("fonts/Lekton-Regular.ttf"),
                             font_size: 50.0,
                             color: Color::NAVY,
                         },
-                        // Note: You can use `Default::default()` in place of the `TextAlignment`
                         TextAlignment {
                             horizontal: HorizontalAlign::Right,
                             ..Default::default()
@@ -433,7 +268,7 @@ fn spawn_text_label(
                     ),
                     ..Default::default()
                 })
-                .insert(ColorText)
+                .insert(FieldValueText(key.to_string()))
                 .id();
 
             commands
@@ -444,117 +279,122 @@ fn spawn_text_label(
 }
 
 // fn query_text(mut commands: Commands, mut query: Query<&mut Text, With<ColorText>>) {
-//     for mut text in query.iter_mut() {
-//         text.sections[0].value = "yas".to_string();
-//     }
+
 // }
 
-// use std::any::{Any, TypeId};
-fn dashboard_variables(
-    mut commands: Commands,
-    mut globals: ResMut<Globals>,
-    mut other_globals: ResMut<OtherGlobals>,
-    mut text_event: EventWriter<SpawnFieldLabel>,
+fn print_global(
+    keyboard_input: Res<Input<KeyCode>>,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
 ) {
-    #[macro_export]
-    macro_rules! attemp_downcasting {
-        ($eq:expr, $($t:ty),+) => {{
-            let mut maybe_value_f64: Option<f64> = None;
-            let value = $eq;
-            $(
-                if let Some(val) = value.downcast_ref::<$t>() {
-                    let val_f64: f64 = (*val).into();
-                    // println!("success f64: {:?}", val_f64);
-                    maybe_value_f64 = Some(val_f64);
-
-                }
-            )+
-            maybe_value_f64
-        }};
+    if keyboard_input.just_pressed(KeyCode::V) {
+        println!("{:?}", globals);
+        println!("{:?}", other_globals);
     }
-
-    #[macro_export]
-    macro_rules! add_to_dashboard_variables {
-        ($($y:expr),*) => {{
-            let mut field_map: HashMap<String, f64> = HashMap::new();
-            let mut field_vec: Vec<(String, f64)> = Vec::new();
-            let mut maybe_value_f64: Option<f64> = None;
-            $(
-                for (i, value) in $y.iter_fields().enumerate() {
-                    let field_name = globals.name_at(i).unwrap();
-                    let mut struct_name = stringify!($y).to_string();
-                    struct_name.push('.');
-                    struct_name.push_str(field_name);
-
-                    maybe_value_f64 = attemp_downcasting![value, u8, u16, u32, i8, i16, i32, f32, f64, MyEnum];
-                    if let Some(f64_value) = maybe_value_f64 {
-                        field_map.insert(struct_name.clone(), f64_value);
-                        field_vec.push((struct_name, f64_value));
-                    }
-                }
-            )+
-            (field_map, field_vec)
-
-        }};
-    }
-
-    let (field_map, field_vec): (HashMap<String, f64>, Vec<(String, f64)>) =
-        add_to_dashboard_variables!(globals, other_globals);
-    let mut v: Vec<(String, String)> = Vec::new();
-    for (key, value) in field_vec.iter() {
-        let mut temp_key = key.clone();
-        let value_string = format!("{:.4}", (*value).to_string());
-        // temp_key.push_str(": ");
-        // temp_key.push_str(&value_string);
-        v.push((temp_key, value_string));
-    }
-
-    text_event.send(SpawnFieldLabel(v));
-
-    // println!("field_map: {:?}", field_map);
-
-    // for (i, value) in globals.iter_fields().enumerate() {
-    //     let field_name = globals.name_at(i).unwrap();
-    //     let num_types = vecco![value, usize, u8, u16, u32, u64, i8, i16, i32, f32, f64, MyEnum];
-    // }
-
-    let mut all_dash_vars = AllVars {
-        globals: globals.as_mut(),
-        other_globals: other_globals.as_mut(),
-    };
-
-    all_dash_vars.globals.var1 = 4321.0;
 }
 
-type KnobId = u32;
-struct ClickedOnKnob(KnobId);
+fn update_dashboard_labels(
+    mut query: Query<(&mut Text, &FieldValueText)>,
+    mut changed_dash_var_event: EventReader<ChangedDashVar>,
+) {
+    // iterates over all text fields, optimization required
+    for ChangedDashVar(field_name, value_f64) in changed_dash_var_event.iter() {
+        for (mut text, struct_key) in query.iter_mut() {
+            // println!("struct_key : {:?}", &struct_key.0);
+
+            if &struct_key.0 == field_name {
+                //
+                let value_string = format!("{:.5}", value_f64.to_string());
+                text.sections[0].value = value_string;
+            }
+        }
+    }
+}
+
+fn modify_field_upon_knob_change(
+    mut knob_rotated_event: EventWriter<KnobRotated>,
+    query: Query<&LinearKnob<f32>, With<RotatingKnob>>,
+) {
+    for knob in query.iter() {
+        if let Some(field_name) = knob.bound_field.clone() {
+            knob_rotated_event.send(KnobRotated(field_name, knob.position))
+        }
+    }
+}
 
 fn check_mouse(
+    mut commands: Commands,
     mouse_button_input: Res<Input<MouseButton>>,
     mut spawn_knob_event_writer: EventWriter<SpawnKnobEvent>,
     cursor: Res<Cursor>,
     keyboard_input: Res<Input<KeyCode>>,
     mut clicked_on_knob_event_writer: EventWriter<ClickedOnKnob>,
-    mut query: Query<(&Transform, &mut LinearKnob<f32>)>,
+    mut released_on_knob_event_writer: EventWriter<ReleasedOnKnob>,
+    button_query: Query<Entity, (With<Button>, With<MovingButton>)>,
+    mut query_set: QuerySet<(
+        QueryState<(Entity, &Transform, &mut LinearKnob<f32>)>,
+        QueryState<(Entity, &mut LinearKnob<f32>), With<RotatingKnob>>,
+        QueryState<(Entity, &Transform, &mut LinearKnob<f32>), With<TranslatingKnob>>,
+    )>,
+    // knob_query: Query<(Entity, &Transform, &mut LinearKnob<f32>)>,
+    // mut moving_knob_query: Query<(Entity, &Transform, &mut LinearKnob<f32>), With<RotatingKnob>>,
 ) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        let pressed_g = keyboard_input.pressed(KeyCode::LControl);
-        if pressed_g {
-            spawn_knob_event_writer.send(SpawnKnobEvent(cursor.position));
-        }
+    let mouse_just_pressed = mouse_button_input.just_pressed(MouseButton::Left);
+    let mouse_just_released = mouse_button_input.just_released(MouseButton::Left);
 
-        for (transform, lin_knob) in query.iter_mut() {
+    let mut clicked_on_knob: Option<(Entity, u32)> = None;
+    let mut released_on_knob: Option<(Entity, u32)> = None;
+
+    // shared computations
+    if mouse_just_pressed || mouse_just_released {
+        let mut knob_query = query_set.q0();
+        for (entity, transform, lin_knob) in knob_query.iter_mut() {
             if cursor.position.distance(transform.translation.truncate()) < lin_knob.radius {
-                clicked_on_knob_event_writer.send(ClickedOnKnob(lin_knob.id));
+                if mouse_just_pressed {
+                    clicked_on_knob = Some((entity, lin_knob.id));
+                }
+                if mouse_just_released {
+                    released_on_knob = Some((entity, lin_knob.id));
+                }
             }
         }
     }
 
-    if mouse_button_input.just_released(MouseButton::Left) {
-        for (transform, mut lin_knob) in query.iter_mut() {
-            lin_knob.state = KnobState::Idle;
-            lin_knob.previous_canvas_position = transform.translation.truncate();
+    if mouse_just_pressed {
+        let pressed_ctrl = keyboard_input.pressed(KeyCode::LControl);
+        //
+        // case of spawning a knob
+        if pressed_ctrl {
+            spawn_knob_event_writer.send(SpawnKnobEvent(cursor.position));
+
+        // case of clicking on a knob (multiple possible actions)
+        } else if let Some((_knob_entity, id)) = clicked_on_knob {
+            clicked_on_knob_event_writer.send(ClickedOnKnob(id));
+        }
+    }
+
+    if mouse_just_released {
+        for button_entity in button_query.iter() {
+            if let Some((knob_entity, id)) = released_on_knob {
+                // released_on_knob_event_writer.send(ReleasedOnKnob(id));
+                commands.entity(button_entity).insert(LinkingFieldToKnob);
+                commands.entity(knob_entity).insert(LinkingFieldToKnob);
+            }
+            commands.entity(button_entity).remove::<MovingButton>();
+        }
+
+        // remove "RotatingKnob" tag on currently rotating knob
+        for (entity, mut lin_knob) in query_set.q1().iter_mut() {
+            // lin_knob.state = KnobState::Idle;
+            commands.entity(entity).remove::<RotatingKnob>();
             lin_knob.previous_position = lin_knob.position;
+        }
+
+        // remove "TranslatingKnob" tag on currently moving knob
+        for (entity, transform, mut lin_knob) in query_set.q2().iter_mut() {
+            // lin_knob.state = KnobState::Idle;
+            commands.entity(entity).remove::<TranslatingKnob>();
+            lin_knob.previous_canvas_position = transform.translation.truncate();
         }
     }
 }
@@ -563,14 +403,11 @@ fn spawn_knob(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut globals: ResMut<Globals>,
-    mut other_globals: ResMut<OtherGlobals>,
     mut spawn_knob_event: EventReader<SpawnKnobEvent>,
-    mut maps: ResMut<Maps>,
 ) {
     for event in spawn_knob_event.iter() {
         let mouse_position = event.0;
-        println!("{:?}", mouse_position);
+        // println!("{:?}", mouse_position);
         let texture_handle = asset_server.load("textures/knob.png");
 
         let scale = 1.0;
@@ -588,13 +425,9 @@ fn spawn_knob(
             previous_position: 0.0,
             id,
             radius: sprite_size * scale * 0.8,
-            state: KnobState::Idle,
+            // state: KnobState::Idle,
+            bound_field: None,
         };
-
-        // // attach knob to a variable here using an id for the knob and a reflection?
-        // let mut knobs: HashMap<u32, Knob> = HashMap::new();
-        // knobs.insert(0, knob_a);
-        // knobs.insert(1, knob_b);
 
         commands
             .spawn_bundle(SpriteBundle {
@@ -631,56 +464,43 @@ fn spawn_knob(
 }
 
 fn knob_action(
-    mut query: Query<&mut LinearKnob<f32>>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut LinearKnob<f32>)>,
     keyboard_input: Res<Input<KeyCode>>,
     mut clicked_on_knob_event_reader: EventReader<ClickedOnKnob>,
 ) {
     for event in clicked_on_knob_event_reader.iter() {
         let knob_id = event.0;
-        println!("HEERE: {:?}", knob_id);
-        for mut lin_knob in query.iter_mut() {
+        // println!("HEERE: {:?}", knob_id);
+        for (entity, mut lin_knob) in query.iter_mut() {
             if knob_id == lin_knob.id && keyboard_input.pressed(KeyCode::LShift) {
-                lin_knob.state = KnobState::Moving;
+                commands.entity(entity).insert(TranslatingKnob);
             } else if knob_id == lin_knob.id {
-                lin_knob.state = KnobState::Rotating;
+                commands.entity(entity).insert(RotatingKnob);
             }
         }
     }
 }
 
-fn move_knob(mut query: Query<(&mut Transform, &mut LinearKnob<f32>)>, cursor: Res<Cursor>) {
-    for (mut transform, mut lin_knob) in query.iter_mut() {
-        match lin_knob.state {
-            KnobState::Moving => {
-                transform.translation =
-                    (lin_knob.previous_canvas_position + cursor.pos_relative_to_click).extend(0.0);
-            }
-            KnobState::Rotating => {
-                let new_angle = lin_knob.previous_position
-                    - cursor.pos_relative_to_click.y
-                        / (100.0 + cursor.pos_relative_to_click.x.abs());
-                transform.rotation = Quat::from_rotation_z(new_angle);
-                lin_knob.position = new_angle;
-                println!("{:?}", new_angle);
-            }
-            _ => {}
-        }
+fn move_knob(
+    // mut query: Query<(&mut Transform, &mut LinearKnob<f32>)>,
+    mut query_set: QuerySet<(
+        QueryState<(&mut Transform, &mut LinearKnob<f32>), With<RotatingKnob>>,
+        QueryState<(&mut Transform, &mut LinearKnob<f32>), With<TranslatingKnob>>,
+    )>,
+    cursor: Res<Cursor>,
+) {
+    for (mut transform, lin_knob) in query_set.q1().iter_mut() {
+        transform.translation =
+            (lin_knob.previous_canvas_position + cursor.pos_relative_to_click).extend(0.0);
     }
-}
 
-pub struct Cursor {
-    pub position: Vec2,
-    pub pos_relative_to_click: Vec2,
-    pub last_click_position: Vec2,
-}
-
-impl Default for Cursor {
-    fn default() -> Self {
-        Cursor {
-            position: Vec2::ZERO,
-            pos_relative_to_click: Vec2::ZERO,
-            last_click_position: Vec2::ZERO,
-        }
+    for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
+        let new_angle = lin_knob.previous_position
+            - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
+        transform.rotation = Quat::from_rotation_z(new_angle);
+        lin_knob.position = new_angle;
+        // println!("{:?}", new_angle);
     }
 }
 
@@ -723,4 +543,76 @@ pub fn record_mouse_events_system(
         cursor_res.last_click_position = cursor_res.position;
         cursor_res.pos_relative_to_click = Vec2::ZERO;
     }
+}
+
+fn update_dashboard_variables(
+    mut globals: ResMut<Globals>,
+    mut other_globals: ResMut<OtherGlobals>,
+    mut events: EventReader<KnobRotated>,
+    mut changed_dash_var_event: EventWriter<ChangedDashVar>,
+) {
+    for KnobRotated(full_name, knob_position) in events.iter() {
+        // println!("field_name : {:?}", struct_info.0);
+
+        let vec_name = full_name
+            .split(".")
+            .map(|x| x.to_owned())
+            .collect::<Vec<String>>();
+
+        // the following code will need to change when implementing nested fields compatibility
+        let struct_name = vec_name.get(0).unwrap().clone();
+        let field_name = vec_name.get(1).unwrap().clone();
+        let ref_struct_name = struct_name.as_str();
+
+        let value_f64 = *knob_position as f64;
+
+        match ref_struct_name {
+            "globals" => {
+                globals.modify_field(&field_name, value_f64);
+                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
+            }
+
+            "other_globals" => {
+                other_globals.modify_field(&field_name, value_f64);
+                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
+            }
+            // "other_globals" => other_globals.modify_field(),
+            _ => {}
+        }
+    }
+}
+
+fn attach_knob_to_field(
+    mut commands: Commands,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut knob_query: Query<(Entity, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
+    mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
+    // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
+) {
+    // for knob_id in released_on_knob_event_writer.iter() {
+    for (knob_entity, mut knob) in knob_query.iter_mut() {
+        for (button_entity, button_id) in button_query.iter_mut() {
+            knob.bound_field = Some(button_id.0.to_owned());
+            println!("attached to {:?}", knob.bound_field);
+            // get field here
+            let comparator = button_id.0.as_str();
+            let value: f64 = match comparator {
+                "globals.var1" => globals.var1.into(),
+                "globals.var2" => globals.var2.into(),
+                "globals.var3" => globals.var3.into(),
+                "other_globals.var1" => other_globals.var1.into(),
+                "other_globals.var2" => other_globals.var2.into(),
+                "other_globals.var3" => other_globals.var3.into(),
+                _ => 0.0,
+            };
+            knob.position = value as f32;
+            knob.previous_position = value as f32;
+            commands
+                .entity(button_entity)
+                .remove::<LinkingFieldToKnob>();
+            commands.entity(knob_entity).remove::<LinkingFieldToKnob>();
+        }
+    }
+    // }
 }
