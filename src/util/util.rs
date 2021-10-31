@@ -24,6 +24,11 @@ use strum_macros::EnumIter;
 use num::{integer::Integer, Float, Num, NumCast};
 
 //////////////////// LINEAR KNOB ///////////////////
+/* A linear knob can either have a continuous domain, in which case
+    T is a floating point type, or it can have a discrete domain, in which case
+    T is an integer type.
+*/
+
 #[derive(Debug, Clone, PartialEq, Component)]
 pub struct LinearKnob<T: Num + Copy> {
     pub position: T,
@@ -53,12 +58,22 @@ impl<T: Num + Copy> LinearKnob<T> {
     }
 }
 
-impl<T: Num + Copy> KnobControl<T> for LinearKnob<T> {
-    fn set_position(&mut self, value: T) {
+impl KnobControl<i64> for LinearKnob<i64> {
+    fn set_position(&mut self, value: i64) {
         self.position = value;
     }
 
-    fn get_value(&self) -> T {
+    fn get_value(&self) -> i64 {
+        self.position
+    }
+}
+
+impl KnobControl<f64> for LinearKnob<f64> {
+    fn set_position(&mut self, value: f64) {
+        self.position = value;
+    }
+
+    fn get_value(&self) -> f64 {
         self.position
     }
 }
@@ -125,18 +140,49 @@ impl Default for Cursor {
     }
 }
 
+#[derive(Reflect, Debug, Clone, Copy)]
+pub enum Nbr {
+    Float32(f32),
+    Float64(f64),
+    Int8(i8),
+    Int16(i16),
+    Int32(i32),
+    Int64(i64),
+    UInt8(u8),
+    UInt16(u16),
+    UInt32(u32),
+    UInt64(u64),
+}
+
+impl Into<f64> for Nbr {
+    fn into(self) -> f64 {
+        match self {
+            Self::Float32(v) => v as f64, // precision loss
+            Self::Float64(v) => v,
+            Self::Int8(v) => v.into(),
+            Self::Int16(v) => v.into(),
+            Self::Int32(v) => v.into(),
+            Self::Int64(v) => v as f64, // precision loss
+            Self::UInt8(v) => v.into(),
+            Self::UInt16(v) => v.into(),
+            Self::UInt32(v) => v.into(),
+            Self::UInt64(v) => v as f64, // precision loss
+        }
+    }
+}
+
 //////////// dummy structs that we want to track with the dashboard /////////////
 #[derive(Reflect, Debug, Clone)]
 pub struct Globals {
     pub var1: f32,
     pub var2: u16,
-    pub var3: i32,
+    pub var3: i64,
 }
 
-#[derive(Reflect, Debug)]
+#[derive(Reflect, Debug, Clone)]
 pub struct OtherGlobals {
-    pub var1: i64,
-    pub var2: f64,
+    pub var1: f64,
+    pub var2: u64,
     pub var3: u8,
 }
 //////////// dummy structs that we want to track with the dashboard /////////////

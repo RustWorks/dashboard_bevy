@@ -8,7 +8,7 @@ use std::fmt::Debug;
 extern crate dashboard_derive;
 use bevy::{
     prelude::*,
-    // reflect::DynamicStruct,
+    reflect::DynamicStruct,
     render::{
         camera::OrthographicProjection,
         // pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
@@ -34,19 +34,21 @@ fn main() {
         .add_event::<ReleasedOnKnob>()
         .add_event::<ChangedDashVar>()
         .init_resource::<ButtonMaterials>()
+        .insert_resource(DynamicStruct::default())
         .insert_resource(Maps::default())
         .insert_resource(ClearColor(Color::hex("6e7f80").unwrap()))
         .insert_resource(Globals {
             var1: 66.666f32,
             var2: 77u16,
-            var3: 55i32,
+            var3: 55i64,
         })
         .insert_resource(Cursor::default())
         .insert_resource(OtherGlobals {
-            var1: -8i64,
-            var2: 22f64,
+            var1: 8f64,
+            var2: 22u64,
             var3: 44u8,
         })
+        .insert_resource(AllVars::new())
         .add_startup_system(setup.label("setup"))
         .add_system(update_dashboard_variables)
         .add_system(spawn_text_label)
@@ -73,6 +75,7 @@ fn setup(
     mut maps: ResMut<Maps>,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
+    mut all_vars: ResMut<AllVars>,
     mut spawn_fields_event: EventWriter<SpawnFieldLabel>,
 ) {
     let vert = asset_server.load::<Shader, _>("shaders/vert.vert");
@@ -133,15 +136,23 @@ fn setup(
         })
         .insert(UiBoard);
 
-    // setup variables on UiBoard
-    let (_field_map, field_vec): (HashMap<String, f64>, Vec<(String, f64)>) =
-        add_to_dashboard_variables!(globals, other_globals);
-    let mut v: Vec<(FieldName, FieldValue)> = Vec::new();
-    for (key, value) in field_vec.iter() {
-        v.push((key.clone(), *value));
-    }
+    // let new_resource = create_dashboard_resource![globals, other_globals];
 
-    spawn_fields_event.send(SpawnFieldLabel(v));
+    let all_vars2 = all_vars
+        .as_ref()
+        .set_values_from_resources(globals.clone(), other_globals.clone());
+
+    add_2_dashboard(all_vars2, spawn_fields_event);
+
+    //
+    // setup variables on UiBoard
+    // let (_field_map, field_vec): (HashMap<String, f64>, Vec<(String, f64)>) =
+    // add_to_dashboard_variables![globals, other_globals];
+
+    // let mut v: Vec<(FieldName, FieldValue)> = Vec::new();
+    // for (key, value) in field_vec.iter() {
+    //     v.push((key.clone(), *value));
+    // }
 }
 
 fn button_system(
@@ -283,21 +294,26 @@ fn spawn_text_label(
 
 // }
 
-fn cleanup_system<T: Component>(mut commands: Commands, q: Query<Entity, With<T>>) {
-    for e in q.iter() {
-        commands.entity(e).despawn_recursive();
-    }
-}
+// fn cleanup_system<T: Component>(mut commands: Commands, q: Query<Entity, With<T>>) {
+//     for e in q.iter() {
+//         commands.entity(e).despawn_recursive();
+//     }
+// }
 
 fn print_global(
     keyboard_input: Res<Input<KeyCode>>,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
-    query: Query<(&KnobSprite, &LinearKnob<f32>)>,
+    query: Query<(&LinearKnob<f32>)>,
+    dynstruct: Res<DynamicStruct>,
 ) {
     if keyboard_input.just_pressed(KeyCode::V) {
         println!("{:?}", globals);
         println!("{:?}", other_globals);
+        // for knob in query.iter() {
+        //     println!("knob: {:?}", knob)
+        // }
+        println!("dynstruct: {:?}", dynstruct.name());
     }
 }
 
@@ -346,7 +362,7 @@ fn check_mouse(
     cursor: Res<Cursor>,
     keyboard_input: Res<Input<KeyCode>>,
     mut clicked_on_knob_event_writer: EventWriter<ClickedOnKnob>,
-    mut released_on_knob_event_writer: EventWriter<ReleasedOnKnob>,
+    // released_on_knob_event_writer: EventWriter<ReleasedOnKnob>,
     button_query: Query<Entity, (With<Button>, With<MovingButton>)>,
     mut query_set: QuerySet<(
         QueryState<(Entity, &Transform, &mut KnobSprite)>,
@@ -393,7 +409,7 @@ fn check_mouse(
 
     if mouse_just_released {
         for button_entity in button_query.iter() {
-            if let Some((knob_entity, id)) = released_on_knob {
+            if let Some((knob_entity, _id)) = released_on_knob {
                 // released_on_knob_event_writer.send(ReleasedOnKnob(id));
                 commands.entity(button_entity).insert(LinkingFieldToKnob);
                 commands.entity(knob_entity).insert(LinkingFieldToKnob);
@@ -401,14 +417,14 @@ fn check_mouse(
             commands.entity(button_entity).remove::<MovingButton>();
         }
 
-        // remove "RotatingKnob" tag on currently rotating knob
+        // remove "RotatingKnob" tag on currently rotating knob (f64)
         for (entity, mut lin_knob) in query_set.q1().iter_mut() {
             // lin_knob.state = KnobState::Idle;
             commands.entity(entity).remove::<RotatingKnob>();
             lin_knob.previous_position = lin_knob.position;
         }
 
-        // remove "RotatingKnob" tag on currently rotating knob
+        // remove "RotatingKnob" tag on currently rotating knob (i64)
         for (entity, mut lin_knob) in query_set.q2().iter_mut() {
             // lin_knob.state = KnobState::Idle;
             commands.entity(entity).remove::<RotatingKnob>();
@@ -543,8 +559,9 @@ fn move_knob(
     }
 
     for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
-        let new_angle = lin_knob.previous_position as f32
+        let mut new_angle = lin_knob.previous_position as f32
             - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
+        new_angle = new_angle.round();
         transform.rotation = Quat::from_rotation_z(new_angle as f32);
         lin_knob.position = new_angle as i64;
         // println!("{:?}", new_angle);
