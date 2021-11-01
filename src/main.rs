@@ -29,7 +29,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_event::<SpawnKnobEvent>()
         .add_event::<ClickedOnKnob>()
-        .add_event::<SpawnFieldLabel>()
+        .add_event::<SpawnLabels>()
+        // .add_event::<SpawnComponentLabels>()
         .add_event::<KnobRotated>()
         .add_event::<ReleasedOnKnob>()
         .add_event::<ChangedDashVar>()
@@ -49,9 +50,11 @@ fn main() {
             var2: 22u64,
             var3: 44u8,
         })
-        .insert_resource(AllVars::new())
-        .add_startup_system(dashboard_variables_setup.before("setup"))
+        .insert_resource(AllDashRes::new())
+        .insert_resource(AllDashComp::new())
+        // .add_startup_system(dashboard_variables_setup.after("setup"))
         .add_startup_system(setup.label("setup"))
+        .add_startup_system(dashboard_variables_setup.exclusive_system().at_end())
         .add_system(update_dashboard_variables)
         .add_system(spawn_text_label)
         .add_system(spawn_knob)
@@ -63,6 +66,7 @@ fn main() {
         .add_system(print_global)
         .add_system(attach_knob_to_field)
         .add_system(update_dashboard_labels)
+        .add_system(move_octo)
         .add_system(check_mouse.exclusive_system().at_end())
         // .add_system(cleanup_system::<KnobSprite>)
         .run();
@@ -115,36 +119,61 @@ fn setup(
     maps.mesh_handles
         .insert("fields_button", fields_button_mesh);
 
+    let texture_handle = asset_server.load("textures/octopus.png");
+    let sprite_size = 100.0;
     commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(31.0), Val::Px(500.0)),
-                // border: Rect::all(Val::Px(5.0)),
-                position: Rect {
-                    // top: Val::Px(15.0),
-                    left: Val::Px(15.0),
-                    bottom: Val::Px(15.0),
-                    ..Default::default()
-                },
-                align_self: bevy::ui::AlignSelf::FlexStart,
-                ..Default::default()
-            },
-            material: materials.add(Color::rgba(0.65, 0.65, 0.65, 0.5).into()),
+        .spawn_bundle(SpriteBundle {
+            material: materials.add(texture_handle.clone().into()),
+            sprite: Sprite::new(Vec2::new(sprite_size, sprite_size)),
+            transform: Transform::from_translation(Vec3::new(0.0, -90.0, 0.0)),
+
             ..Default::default()
         })
-        .insert(UiBoard);
+        // .insert(knob)
+        .insert(MyComponent {
+            y_position: -90.0,
+            v2: 25,
+            v3: MyEnum::B,
+        })
+        .insert(DashComponent);
 
-    // let new_resource = create_dashboard_resource![globals, other_globals];
+    commands
+        .spawn_bundle(SpriteBundle {
+            material: materials.add(texture_handle.into()),
+            sprite: Sprite::new(Vec2::new(sprite_size, sprite_size)),
+            transform: Transform::from_translation(Vec3::new(0.0, 90.0, 0.0)),
 
-    //
-    // setup variables on UiBoard
-    // let (_field_map, field_vec): (HashMap<String, f64>, Vec<(String, f64)>) =
-    // add_to_dashboard_variables![globals, other_globals];
+            ..Default::default()
+        })
+        // .insert(knob)
+        .insert(MyComponent {
+            y_position: 90.0,
+            v2: 25,
+            v3: MyEnum::C,
+        })
+        .insert(DashComponent);
+}
 
-    // let mut v: Vec<(FieldName, FieldValue)> = Vec::new();
-    // for (key, value) in field_vec.iter() {
-    //     v.push((key.clone(), *value));
-    // }
+fn move_octo(
+    // mut comp_query_set: QuerySet<(
+    //     QueryState<(Entity, &MyComponent), With<DashComponent>>,
+    //     QueryState<(Entity, &mut Transform), (With<DashComponent>, Changed<MyComponent>)>,
+    // )>,
+    mut query: Query<
+        (Entity, &mut Transform, &MyComponent),
+        (With<DashComponent>, Changed<MyComponent>),
+    >,
+) {
+    // let my_component_query = comp_query_set.q0();
+    // let y_pos = my_component_query.iter().next().unwrap().1.y_position;
+    // let mut transform_query = comp_query_set.q1();
+    for (_entity, mut transform, my_component) in query.iter_mut() {
+        transform.translation.y = my_component.y_position;
+        // let mut transform = transform_query.iter_mut().next();
+        // if let Some(pair) = transform.as_mut() {
+        //     pair.1.translation.y = y_pos;
+        // }
+    }
 }
 
 fn button_system(
@@ -175,27 +204,31 @@ fn button_system(
 fn spawn_text_label(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut text_event_reader: EventReader<SpawnFieldLabel>,
+    mut text_res_event_reader: EventReader<SpawnLabels>,
+    // mut text_comp_event_reader: EventReader<SpawnComponentLabels>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    ui_query: Query<Entity, With<UiBoard>>,
+    // ui_res_query: Query<Entity, With<UiBoardResources>>,
+    // ui_comp_query: Query<Entity, With<UiBoardComponents>>,
 ) {
-    for event in text_event_reader.iter() {
+    for event in text_res_event_reader.iter() {
+        let ui_entity = event.1;
+        let scale = 0.75;
         for (k, (key, value)) in event.0.iter().enumerate() {
-            let ui_entity = ui_query.single();
+            // let mut ui_entity = ui_res_query.single();
 
             // let text_content = event.0.clone();
             // let key = text_content[0].clone();
             // let value = text_content[1].clone();
-            let height = k as f32 * 60.0;
+            let height = k as f32 * 60.0 * scale;
 
-            let offset = 5.0;
+            let offset = 10.0;
 
             let button_entity = commands
                 .spawn_bundle(ButtonBundle {
                     style: Style {
                         align_self: AlignSelf::FlexEnd,
                         position_type: PositionType::Absolute,
-                        size: Size::new(Val::Percent(90.0), Val::Px(50.0)),
+                        size: Size::new(Val::Percent(90.0), Val::Px(50.0 * scale)),
                         position: Rect {
                             top: Val::Px(height + offset),
                             right: Val::Px(15.0),
@@ -231,7 +264,7 @@ fn spawn_text_label(
                         key,
                         TextStyle {
                             font: asset_server.load("fonts/Lekton-Regular.ttf"),
-                            font_size: 50.0,
+                            font_size: 50.0 * scale,
                             color: Color::NAVY,
                         },
                         TextAlignment {
@@ -262,7 +295,7 @@ fn spawn_text_label(
                         value_string,
                         TextStyle {
                             font: asset_server.load("fonts/Lekton-Regular.ttf"),
-                            font_size: 50.0,
+                            font_size: 50.0 * scale,
                             color: Color::NAVY,
                         },
                         TextAlignment {

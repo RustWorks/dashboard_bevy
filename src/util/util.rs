@@ -231,6 +231,8 @@ impl Into<f64> for Nbr {
 }
 
 //////////// dummy structs that we want to track with the dashboard /////////////
+//
+// resource
 #[derive(Reflect, Debug, Clone)]
 pub struct Globals {
     pub var1: f32,
@@ -238,11 +240,20 @@ pub struct Globals {
     pub var3: i64,
 }
 
+// resource
 #[derive(Reflect, Debug, Clone)]
 pub struct OtherGlobals {
     pub var1: f64,
     pub var2: u64,
     pub var3: u8,
+}
+
+// component
+#[derive(Reflect, Debug, Clone, Component)]
+pub struct MyComponent {
+    pub y_position: f32,
+    pub v2: u16,
+    pub v3: MyEnum,
 }
 //////////// dummy structs that we want to track with the dashboard /////////////
 // pub struct FieldKnobMap(pub BiMap<String, KnobId>);
@@ -274,7 +285,10 @@ pub struct ButtonId(pub String);
 pub struct ColorText;
 
 #[derive(Component)]
-pub struct UiBoard;
+pub struct UiBoardResources;
+
+#[derive(Component)]
+pub struct UiBoardComponents;
 
 #[derive(Component)]
 pub struct TranslatingKnob;
@@ -282,13 +296,18 @@ pub struct TranslatingKnob;
 #[derive(Component)]
 pub struct RotatingKnob;
 
+#[derive(Component)]
+pub struct DashComponent;
+
 pub type KnobId = u32;
 
 pub struct ClickedOnKnob(pub KnobId);
 pub struct ReleasedOnKnob(pub KnobId);
 pub struct SpawnKnobEvent(pub Vec2);
 pub struct KnobRotated(pub String, pub f32);
-pub struct SpawnFieldLabel(pub Vec<(FieldName, FieldValue)>);
+pub struct SpawnLabels(pub Vec<(FieldName, FieldValue)>, pub Entity); // entity is either the ui_res_board or ui_comp_board
+                                                                      // pub struct SpawnComponentLabels(pub Vec<(FieldName, FieldValue)>, pub Entity);
+
 pub struct ChangedDashVar(pub FieldName, pub FieldValue);
 
 pub type FieldName = String;
@@ -334,7 +353,7 @@ impl Default for Maps {
 // }
 
 // #[derive(Debug)]
-// struct AllVars<'a> {
+// struct AllDashRes<'a> {
 //     globals: &'a mut Globals,
 //     other_globals: &'a mut OtherGlobals,
 // }
