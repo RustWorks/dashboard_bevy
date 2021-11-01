@@ -236,10 +236,10 @@ macro_rules! downcast_struct {
         let mut field_vec: Vec<(FieldName, FieldValue)> = Vec::new();
         $(
             if let Some(dash_resource) = $value.downcast_ref::<$struct_type>() {
+                //
                 for (j, inner_value) in dash_resource.iter_fields().enumerate() {
+                    //
                     let field_name = dash_resource.name_at(j).unwrap();
-                    // struct_name.push('.');
-                    // struct_name.push_str(field_name);
                     if let Some(f64_value) =
                         // procedural macro to generate the list of Dashboard implemented types
                         attemp_downcasting![inner_value, MyEnum, Nbr] {
@@ -253,9 +253,22 @@ macro_rules! downcast_struct {
     }
 }}
 
+// procedural macro here for resources (globals and other_globals)
+pub fn dashboard_variables_setup(
+    all_vars_res: ResMut<AllVars>,
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut spawn_fields_event: EventWriter<SpawnFieldLabel>,
+) {
+    let all_vars = all_vars_res
+        .as_ref()
+        .set_values_from_resources(globals.clone(), other_globals.clone());
+
+    add_2_dashboard(all_vars, spawn_fields_event);
+}
+
 pub fn add_2_dashboard(all_vars: AllVars, mut spawn_fields_event: EventWriter<SpawnFieldLabel>) {
     let mut struct_field_vec: Vec<(String, FieldValue)> = Vec::new();
-    // let mut v: Vec<(FieldName, FieldValue)> = Vec::new();
     //
     for (i, value) in all_vars.iter_fields().enumerate() {
         //
@@ -267,9 +280,12 @@ pub fn add_2_dashboard(all_vars: AllVars, mut spawn_fields_event: EventWriter<Sp
         v = v
             .iter_mut()
             .map(|(field_name, val_f64)| {
+                //
                 let mut struct_name_temp = struct_name.clone();
+                //
                 struct_name_temp.push('.');
                 struct_name_temp.push_str(field_name);
+                //
                 (struct_name_temp.to_owned(), val_f64.clone())
             })
             .collect::<Vec<(FieldName, FieldValue)>>();
@@ -278,31 +294,7 @@ pub fn add_2_dashboard(all_vars: AllVars, mut spawn_fields_event: EventWriter<Sp
     spawn_fields_event.send(SpawnFieldLabel(struct_field_vec));
 }
 
-// #[macro_export]
-// macro_rules! add_to_dashboard_variables {
-// ($($y:expr),*) => {{
-//     let mut field_map: HashMap<String, f64> = HashMap::new();
-//     let mut field_vec: Vec<(String, f64)> = Vec::new();
-//     $(
-//         for (i, value) in $y.iter_fields().enumerate() {
-//             let field_name = $y.name_at(i).unwrap();
-//             let mut struct_name = stringify!($y).to_string();
-//             struct_name.push('.');
-//             struct_name.push_str(field_name);
-
-//             if let Some(f64_value) =
-//                 attemp_downcasting![value, u8, u16, u32, i8, i16, i32, f32, f64, MyEnum, Nbr]
-//             {
-//                 field_map.insert(struct_name.clone(), f64_value);
-//                 field_vec.push((struct_name, f64_value));
-//             }
-//         }
-//     )*
-//     (field_map, field_vec)
-
-// }}
-// }
-
+// model
 pub fn update_dashboard_variables(
     mut globals: ResMut<Globals>,
     mut other_globals: ResMut<OtherGlobals>,
@@ -310,8 +302,6 @@ pub fn update_dashboard_variables(
     mut changed_dash_var_event: EventWriter<ChangedDashVar>,
 ) {
     for KnobRotated(full_name, knob_position) in events.iter() {
-        // println!("field_name : {:?}", struct_info.0);
-
         let vec_name = full_name
             .split(".")
             .map(|x| x.to_owned())
@@ -345,11 +335,17 @@ pub fn attach_knob_to_field(
     other_globals: Res<OtherGlobals>,
     knob_sprite_query: Query<(Entity, &KnobSprite), With<LinkingFieldToKnob>>,
     // mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
-    mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
+    mut button_query: Query<
+        (Entity, &ButtonId),
+        (
+            With<Button>,
+            With<LinkingFieldToKnob>,
+            Without<LinkedWithKnob>,
+        ),
+    >,
+    // mut field_knob_map: ResMut<FieldKnobMap>,
     // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
 ) {
-    // for knob_id in released_on_knob_event_writer.iter() {
-    // for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
     for (button_entity, button_id) in button_query.iter_mut() {
         for (knob_sprite_entity, knob_sprite) in knob_sprite_query.iter() {
             let full_name = button_id.0.as_str();
@@ -361,11 +357,16 @@ pub fn attach_knob_to_field(
                             $(
                                 stringify!($yy) => {
                                     let mut new_knob: LinearKnob<$xx> = LinearKnob::new($yy as $xx);
-                                    new_knob.bound_field = Some(button_id.0.to_owned());
-                                    new_knob.id = knob_sprite.id.clone();
-                                    println!("attached to {:?}", new_knob.bound_field);
-                                    commands.entity(knob_sprite_entity).insert(new_knob);
+                                    new_knob.set_bounds_and_speed(None);
+                                    new_knob.set_position($yy as $xx);
 
+                                    new_knob.linked_field = Some(button_id.0.to_owned());
+                                    new_knob.id = knob_sprite.id.clone();
+                                    println!("attached to {:?}", new_knob.linked_field);
+                                    commands.entity(knob_sprite_entity).remove::<LinearKnob<f64>>();
+                                    commands.entity(knob_sprite_entity).remove::<LinearKnob<i64>>();
+                                    commands.entity(button_entity).insert(LinkedWithKnob(new_knob.id.clone()));
+                                    commands.entity(knob_sprite_entity).insert(new_knob);
                                 }
                             )*
                             _ => {}
@@ -398,44 +399,3 @@ pub fn attach_knob_to_field(
         }
     }
 }
-
-// pub fn attach_knob_to_field(
-//     mut commands: Commands,
-//     globals: Res<Globals>,
-//     other_globals: Res<OtherGlobals>,
-//     mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
-//     mut button_query: Query<(Entity, &ButtonId), (With<Button>, With<LinkingFieldToKnob>)>,
-//     // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
-// ) {
-//     // for knob_id in released_on_knob_event_writer.iter() {
-//     for (knob_entity, mut knob_transform, mut knob) in knob_query.iter_mut() {
-//         for (button_entity, button_id) in button_query.iter_mut() {
-//             // get field here
-//             let full_name = button_id.0.as_str();
-//             let value: f64 = match full_name {
-//                 "globals.var1" => globals.var1.into(),
-//                 "globals.var2" => globals.var2.into(),
-//                 "globals.var3" => globals.var3.into(),
-//                 "other_globals.var1" => other_globals.var1.into(),
-//                 "other_globals.var2" => other_globals.var2.into(),
-//                 "other_globals.var3" => other_globals.var3.into(),
-//                 _ => 0.0,
-//             };
-
-//             knob.bound_field = Some(button_id.0.to_owned());
-//             knob.position = value as f32;
-//             knob_transform.rotation = Quat::from_rotation_z(knob.position);
-//             knob.previous_position = value as f32;
-
-//             // let new_knob = LinearKnob<>
-
-//             println!("attached to {:?}", knob.bound_field);
-//             // cleaning up
-//             commands
-//                 .entity(button_entity)
-//                 .remove::<LinkingFieldToKnob>();
-//             commands.entity(knob_entity).remove::<LinkingFieldToKnob>();
-//         }
-//     }
-//     // }
-// }

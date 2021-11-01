@@ -4,8 +4,8 @@ use std::fmt::Debug;
 extern crate dashboard_derive;
 use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
 
+// use bimap::BiMap;
 use std::collections::HashMap;
-
 use strum_macros::EnumIter;
 
 // use bevy::{
@@ -17,7 +17,7 @@ use strum_macros::EnumIter;
 //         shader::ShaderStages,
 //     },
 // };
-// use bimap::BiMap;
+
 // use num::traits::Zero;
 // use std::any::Any;
 // use strum::IntoEnumIterator;
@@ -33,11 +33,12 @@ use num::{integer::Integer, Float, Num, NumCast};
 pub struct LinearKnob<T: Num + Copy> {
     pub position: T,
     pub previous_position: T,
-    // pub bounds: (T, T),
+    pub bounds: Option<(T, T)>,
     // pub previous_canvas_position: Vec2,
-    pub bound_field: Option<String>,
+    pub linked_field: Option<String>,
 
     pub id: KnobId,
+    pub speed: f32,
     // pub radius: f32,
     // pub state: KnobState,
 }
@@ -51,8 +52,10 @@ impl<T: Num + Copy> LinearKnob<T> {
         LinearKnob {
             position,
             previous_position: position,
-            bound_field: None,
+            linked_field: None,
             id: new_id,
+            bounds: None,
+            speed: 1.0,
             // radius: 75.0 * 0.8,
         }
     }
@@ -60,22 +63,83 @@ impl<T: Num + Copy> LinearKnob<T> {
 
 impl KnobControl<i64> for LinearKnob<i64> {
     fn set_position(&mut self, value: i64) {
-        self.position = value;
+        if let Some(bounds) = self.bounds {
+            self.position = value.clamp(bounds.0, bounds.1);
+        } else {
+            self.position = value;
+        }
     }
 
     fn get_value(&self) -> i64 {
         self.position
     }
+
+    fn set_bounds_and_speed(&mut self, input_bounds: Option<(i64, i64)>) {
+        if let Some(bounds) = input_bounds {
+            self.bounds = Some(bounds);
+        } else {
+            let mut bounds = (0, 0);
+            bounds.1 = 10_i64.pow((self.position.abs() as f32).log10().ceil() as u32);
+            if self.position < 0 {
+                bounds.0 = -bounds.1;
+            }
+            self.speed = (bounds.1 - bounds.0).abs() as f32 / 10.0;
+            self.bounds = Some(bounds);
+        }
+    }
+
+    // maps the position of the knob to the the angle given the bounds
+    fn get_angle(&self) -> f32 {
+        let offset = -0.75;
+        let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
+        let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
+        let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
+        return zero + (one - zero) * (self.position as f32 / range as f32);
+    }
 }
 
 impl KnobControl<f64> for LinearKnob<f64> {
     fn set_position(&mut self, value: f64) {
-        self.position = value;
+        if let Some(bounds) = self.bounds {
+            self.position = value.clamp(bounds.0, bounds.1);
+        } else {
+            self.position = value;
+        }
     }
 
     fn get_value(&self) -> f64 {
         self.position
     }
+
+    fn set_bounds_and_speed(&mut self, input_bounds: Option<(f64, f64)>) {
+        if let Some(bounds) = input_bounds {
+            self.bounds = Some(bounds);
+        } else {
+            let mut bounds = (0.0, 0.0);
+            bounds.1 = 10.0_f64.powf(self.position.abs().log10().ceil());
+            if self.position < 0.0 {
+                bounds.0 = -bounds.1;
+            }
+
+            self.speed = (bounds.1 - bounds.0).abs() as f32 / 10.0;
+            self.bounds = Some(bounds);
+        }
+    }
+
+    fn get_angle(&self) -> f32 {
+        let offset = -0.75;
+        let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
+        let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
+        let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
+        return zero + (one - zero) * (self.position as f32 / range as f32);
+    }
+}
+
+pub trait KnobControl<T: Num> {
+    fn set_position(&mut self, value: T);
+    fn get_value(&self) -> T;
+    fn set_bounds_and_speed(&mut self, bounds: Option<(T, T)>);
+    fn get_angle(&self) -> f32;
 }
 
 // impl KnobControl<i32> for LinearKnob<i32> {
@@ -109,11 +173,6 @@ impl KnobControl<f64> for LinearKnob<f64> {
 // }
 
 //////////////////// LINEAR KNOB ///////////////////
-
-trait KnobControl<T: Num> {
-    fn set_position(&mut self, value: T);
-    fn get_value(&self) -> T;
-}
 
 use serde::Serialize;
 #[derive(Copy, Clone, PartialEq, EnumIter, Debug, Reflect, Hash, Serialize, PartialOrd)]
@@ -186,6 +245,8 @@ pub struct OtherGlobals {
     pub var3: u8,
 }
 //////////// dummy structs that we want to track with the dashboard /////////////
+// pub struct FieldKnobMap(pub BiMap<String, KnobId>);
+
 #[derive(Component)]
 pub struct KnobSprite {
     pub id: KnobId,
@@ -193,6 +254,9 @@ pub struct KnobSprite {
     pub previous_position: Vec2,
     pub radius: f32,
 }
+
+#[derive(Component)]
+pub struct LinkedWithKnob(pub KnobId);
 
 #[derive(Component)]
 pub struct LinkingFieldToKnob;
@@ -203,7 +267,7 @@ pub struct MovingButton;
 #[derive(Component)]
 pub struct FieldValueText(pub String);
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, PartialEq, Eq, Hash)]
 pub struct ButtonId(pub String);
 
 #[derive(Component)]

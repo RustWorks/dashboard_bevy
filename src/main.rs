@@ -17,7 +17,7 @@ use bevy::{
     },
 };
 // use bimap::BiMap;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 // use num::traits::Zero;
 // use std::any::Any;
@@ -37,6 +37,7 @@ fn main() {
         .insert_resource(DynamicStruct::default())
         .insert_resource(Maps::default())
         .insert_resource(ClearColor(Color::hex("6e7f80").unwrap()))
+        // .insert_resource(FieldKnobMap(BiMap::new()))
         .insert_resource(Globals {
             var1: 66.666f32,
             var2: 77u16,
@@ -49,11 +50,11 @@ fn main() {
             var3: 44u8,
         })
         .insert_resource(AllVars::new())
+        .add_startup_system(dashboard_variables_setup.before("setup"))
         .add_startup_system(setup.label("setup"))
         .add_system(update_dashboard_variables)
         .add_system(spawn_text_label)
         .add_system(spawn_knob)
-        .add_system(check_mouse)
         .add_system(record_mouse_events_system)
         .add_system(knob_action)
         .add_system(move_knob)
@@ -62,6 +63,7 @@ fn main() {
         .add_system(print_global)
         .add_system(attach_knob_to_field)
         .add_system(update_dashboard_labels)
+        .add_system(check_mouse.exclusive_system().at_end())
         // .add_system(cleanup_system::<KnobSprite>)
         .run();
 }
@@ -73,10 +75,6 @@ fn setup(
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut maps: ResMut<Maps>,
-    globals: Res<Globals>,
-    other_globals: Res<OtherGlobals>,
-    mut all_vars: ResMut<AllVars>,
-    mut spawn_fields_event: EventWriter<SpawnFieldLabel>,
 ) {
     let vert = asset_server.load::<Shader, _>("shaders/vert.vert");
     let ends = asset_server.load::<Shader, _>("shaders/bounding_box.frag");
@@ -137,12 +135,6 @@ fn setup(
         .insert(UiBoard);
 
     // let new_resource = create_dashboard_resource![globals, other_globals];
-
-    let all_vars2 = all_vars
-        .as_ref()
-        .set_values_from_resources(globals.clone(), other_globals.clone());
-
-    add_2_dashboard(all_vars2, spawn_fields_event);
 
     //
     // setup variables on UiBoard
@@ -304,19 +296,20 @@ fn print_global(
     keyboard_input: Res<Input<KeyCode>>,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
-    query: Query<(&LinearKnob<f32>)>,
+    query: Query<(&LinearKnob<i64>)>,
     dynstruct: Res<DynamicStruct>,
 ) {
     if keyboard_input.just_pressed(KeyCode::V) {
         println!("{:?}", globals);
         println!("{:?}", other_globals);
-        // for knob in query.iter() {
-        //     println!("knob: {:?}", knob)
-        // }
-        println!("dynstruct: {:?}", dynstruct.name());
+        for knob in query.iter() {
+            println!("knob: {:?}", knob)
+        }
+        // println!("dynstruct: {:?}", dynstruct.name());
     }
 }
 
+// view
 fn update_dashboard_labels(
     mut query: Query<(&mut Text, &FieldValueText)>,
     mut changed_dash_var_event: EventReader<ChangedDashVar>,
@@ -344,13 +337,13 @@ fn modify_field_upon_knob_change(
     )>,
 ) {
     for knob in query_set.q0().iter() {
-        if let Some(field_name) = knob.bound_field.clone() {
-            knob_rotated_event.send(KnobRotated(field_name, knob.position as f32))
+        if let Some(field_name) = knob.linked_field.clone() {
+            knob_rotated_event.send(KnobRotated(field_name, knob.get_value() as f32))
         }
     }
     for knob in query_set.q1().iter() {
-        if let Some(field_name) = knob.bound_field.clone() {
-            knob_rotated_event.send(KnobRotated(field_name, knob.position as f32))
+        if let Some(field_name) = knob.linked_field.clone() {
+            knob_rotated_event.send(KnobRotated(field_name, knob.get_value() as f32))
         }
     }
 }
@@ -560,18 +553,21 @@ fn move_knob(
 
     for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
         let mut new_angle = lin_knob.previous_position as f32
-            - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
+            + lin_knob.speed * cursor.pos_relative_to_click.y / 100.0;
         new_angle = new_angle.round();
-        transform.rotation = Quat::from_rotation_z(new_angle as f32);
-        lin_knob.position = new_angle as i64;
+        lin_knob.set_position(new_angle as i64);
+        transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
+
         // println!("{:?}", new_angle);
     }
 
     for (mut transform, mut lin_knob) in query_set.q1().iter_mut() {
         let new_angle = lin_knob.previous_position as f32
-            - cursor.pos_relative_to_click.y / (100.0 + cursor.pos_relative_to_click.x.abs());
-        transform.rotation = Quat::from_rotation_z(new_angle as f32);
-        lin_knob.position = new_angle as f64;
+            + lin_knob.speed * cursor.pos_relative_to_click.y / 100.0;
+
+        lin_knob.set_position(new_angle as f64);
+        transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
+
         // println!("{:?}", new_angle);
     }
 }
