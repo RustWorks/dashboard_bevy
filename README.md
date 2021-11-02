@@ -14,5 +14,6 @@ Bezier curves. Its user interface provides functionality for
 - generating a mesh that follows a path like a road,
 - saving meshes and roads in ".obj" format,
 
-A stable version of Bevy Pen Tool should come out as a crate shortly after Bevy 0.6 shows up.
-Here is a link to the [repo for more information](https://github.com/eliotbo/bevy_pen_tool).
+A stable version of Bevy Pen Tool should come out as a crate shortly 
+after Bevy 0.6 shows up. Here is a link to the [repo for more 
+information](https://github.com/eliotbo/bevy_pen_tool).
