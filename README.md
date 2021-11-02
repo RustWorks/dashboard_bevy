@@ -3,6 +3,12 @@ A Bevy Engine UI with knobs and graphs, inspired by sound design tools
 
 ### [Bevy Pen Tool](https://github.com/eliotbo/bevy_pen_tool)
 
+
+
+![bevy_pen_tool2](https://user-images.githubusercontent.com/6177048/139944701-7cfa7803-10a6-4e6d-a293-9c94045ad3b6.gif)
+
+
+
 Bevy Pen Tool is a plugin that helps developers make 2D paths using 
 Bezier curves. Its user interface provides functionality for 
     - spawning Bezier curves
