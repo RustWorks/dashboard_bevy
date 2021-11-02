@@ -4,7 +4,7 @@ mod util;
 use macro_template::*;
 use util::*;
 
-use std::fmt::Debug;
+// use std::fmt::Debug;
 extern crate dashboard_derive;
 use bevy::{
     prelude::*,
@@ -12,8 +12,10 @@ use bevy::{
     render::{
         camera::OrthographicProjection,
         // pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
-        pipeline::PipelineDescriptor,
+        pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines, },
         shader::ShaderStages,
+        render_graph::{base, AssetRenderResourcesNode, RenderGraph},
+
     },
 };
 // use bimap::BiMap;
@@ -27,6 +29,7 @@ use bevy::{
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_asset::<KnobShader>()
         .add_event::<SpawnKnobEvent>()
         .add_event::<ClickedOnKnob>()
         .add_event::<SpawnLabels>()
@@ -34,6 +37,7 @@ fn main() {
         .add_event::<KnobRotated>()
         .add_event::<ReleasedOnKnob>()
         .add_event::<ChangedDashVar>()
+
         .init_resource::<ButtonMaterials>()
         .insert_resource(DynamicStruct::default())
         .insert_resource(Maps::default())
@@ -67,6 +71,8 @@ fn main() {
         .add_system(attach_knob_to_field)
         .add_system(update_dashboard_labels)
         .add_system(move_octo)
+        .add_system(set_knob_angle_once)
+        .add_system(modify_angle)
         .add_system(check_mouse.exclusive_system().at_end())
         // .add_system(cleanup_system::<KnobSprite>)
         .run();
@@ -79,13 +85,39 @@ fn setup(
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut maps: ResMut<Maps>,
+    mut render_graph: ResMut<RenderGraph>,
 ) {
     let vert = asset_server.load::<Shader, _>("shaders/vert.vert");
     let ends = asset_server.load::<Shader, _>("shaders/bounding_box.frag");
+    let knobs = asset_server.load::<Shader, _>("shaders/knob.frag");
 
     use std::{thread, time};
     let hundred_millis = time::Duration::from_millis(100);
     thread::sleep(hundred_millis);
+
+    render_graph.add_system_node(
+        "knob_shader_params",
+        AssetRenderResourcesNode::<KnobShader>::new(true),
+    );
+
+    render_graph
+        .add_node_edge("knob_shader_params", base::node::MAIN_PASS)
+        .unwrap();
+
+    let knob_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: vert.clone(),
+        fragment: Some(knobs.clone()),
+    }));
+
+    maps.pipeline_handles.insert("knobs", knob_pipeline_handle);
+
+    let knob_mesh = meshes.add(Mesh::from(shape::Quad {
+        size: Vec2::new(75.0, 75.0),
+        flip: false,
+    }));
+
+    maps.mesh_handles
+        .insert("knob", knob_mesh);
 
     // commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(OrthographicCameraBundle {
@@ -329,15 +361,19 @@ fn print_global(
     keyboard_input: Res<Input<KeyCode>>,
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
-    query: Query<(&LinearKnob<i64>)>,
+    query_i64: Query<(&LinearKnob<i64>)>,
+    query_f64: Query<(&LinearKnob<f64>)>,
     comp_query: Query<&MyComponent, With<DashComponent>>,
     dynstruct: Res<DynamicStruct>,
 ) {
     if keyboard_input.just_pressed(KeyCode::V) {
         println!("{:?}", globals);
         println!("{:?}", other_globals);
-        for knob in query.iter() {
+        for knob in query_i64.iter() {
             println!("knob: {:?}", knob)
+        }
+        for knob in query_f64.iter() {
+            println!("knob f64: {:?}", knob)
         }
         for (k, my_component) in comp_query.iter().enumerate() {
             println!("my_component {}: {:?}", k, my_component)
@@ -477,11 +513,13 @@ fn spawn_knob(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut spawn_knob_event: EventReader<SpawnKnobEvent>,
+    mut my_shader_params: ResMut<Assets<KnobShader>>,
+    mut maps: ResMut<Maps>,
 ) {
     for event in spawn_knob_event.iter() {
         let mouse_position = event.0;
         // println!("{:?}", mouse_position);
-        let texture_handle = asset_server.load("textures/knob.png");
+        // let texture_handle = asset_server.load("textures/knob.png");
 
         let scale = 1.0;
         let scale_transform = Transform::from_scale(Vec3::new(scale, scale, 1.0));
@@ -491,45 +529,78 @@ fn spawn_knob(
         let id: KnobId = rng.gen();
 
         let sprite_size = 75.0;
+        let radius = 75.0 * 0.8;
+        // commands
+        //     .spawn_bundle(SpriteBundle {
+        //         material: materials.add(texture_handle.into()),
+        //         sprite: Sprite::new(Vec2::new(sprite_size, sprite_size)),
+        //         transform: Transform::from_translation(mouse_position.extend(0.0))
+        //             .mul_transform(scale_transform),
 
+        //         ..Default::default()
+        //     })
+        //     // .insert(knob)
+        //     .insert(KnobSprite {
+        //         id,
+        //         position: mouse_position,
+        //         previous_position: mouse_position,
+        //         radius: 75.0 * 0.8,
+        //     });
+
+        let knob_shader_params = KnobShader {
+            color: Color::RED,
+            clearcolor: Color::hex("6e7f80").unwrap(),
+            zoom: 1.0_f32,
+            hovered: 0.0_f32,
+            size: Vec2::new(radius, radius),
+            angle: 0.0_f32,
+        };
+
+        let shader_params_handle = my_shader_params.add(knob_shader_params);
+
+        // let knob_pipeline_handle = maps.pipeline_handles["fields_button"].clone();
+        let knob_pipeline_handle = maps.pipeline_handles["knobs"].clone();
+
+        let pipelines =
+            RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                knob_pipeline_handle,
+            )]);
+
+
+
+        let knob_mesh_handle = maps.mesh_handles["knob"].clone();
+        // a mesh that acts like a button
         commands
-            .spawn_bundle(SpriteBundle {
-                material: materials.add(texture_handle.into()),
-                sprite: Sprite::new(Vec2::new(sprite_size, sprite_size)),
-                transform: Transform::from_translation(mouse_position.extend(0.0))
-                    .mul_transform(scale_transform),
-
+            .spawn_bundle(MeshBundle {
+                mesh: knob_mesh_handle.clone(),
+                // visible: visible_anchors.clone(),
+                render_pipelines: pipelines.clone(),
+                transform: Transform::from_translation(mouse_position.extend(0.0)),
                 ..Default::default()
             })
-            // .insert(knob)
+            // .insert(shader_params_handle_bb.clone())
+            // .insert(field_id)
             .insert(KnobSprite {
                 id,
                 position: mouse_position,
                 previous_position: mouse_position,
-                radius: 75.0 * 0.8,
-            });
-
-        // let field_button_pipeline_handle = maps.pipeline_handles["fields_button"].clone();
-
-        // let render_piplines_fields_button =
-        //     RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-        //         field_button_pipeline_handle,
-        //     )]);
-
-        // let fields_button_mesh_handle = maps.mesh_handles["fields_button"].clone();
-        // // a mesh that acts like a button
-        // commands
-        //     .spawn_bundle(MeshBundle {
-        //         mesh: fields_button_mesh_handle.clone(),
-        //         // visible: visible_anchors.clone(),
-        //         render_pipelines: render_piplines_fields_button.clone(),
-        //         transform: Transform::from_translation(Vec3::new(100.0, height, -10.0)),
-        //         ..Default::default()
-        //     })
-        //     // .insert(shader_params_handle_bb.clone())
-        //     // .insert(field_id)
-        //     .id();
+                radius,
+            })
+            .insert(shader_params_handle)
+            .id();
     }
+}
+
+fn modify_angle(globals: Res<Globals>,mut my_shaders_params: ResMut<Assets<KnobShader>>, 
+    mut commands: Commands, mut query: Query<&Handle<KnobShader>>) {
+    for mut knob_shader_handle in query.iter_mut() {
+        let shader_parmas = my_shaders_params.get_mut(knob_shader_handle).unwrap();
+        let mut angle = globals.var1;
+        shader_parmas.angle = angle;
+    }
+    
+
+
 }
 
 fn knob_action(
@@ -576,6 +647,17 @@ fn knob_action(
     }
 }
 
+fn set_knob_angle_once(mut commands: Commands, mut query: Query<(Entity, &mut Transform, &SettingKnobAngleOnce)>) {
+    for (entity, mut transform, setting_knob_angle_component) in query.iter_mut() {
+        let angle: f32 = setting_knob_angle_component.0;
+
+        transform.rotation = Quat::from_rotation_z(-angle);
+        commands.entity(entity).remove::<SettingKnobAngleOnce>();
+
+
+    }
+}
+
 fn move_knob(
     // mut query: Query<(&mut Transform, &mut LinearKnob<f32>)>,
     mut query_set: QuerySet<(
@@ -590,7 +672,7 @@ fn move_knob(
             (knob_sprite.previous_position + cursor.pos_relative_to_click).extend(0.0);
     }
 
-    for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
+    for ( mut transform, mut lin_knob) in query_set.q0().iter_mut() {
         let mut new_angle = lin_knob.previous_position as f32
             + lin_knob.speed * cursor.pos_relative_to_click.y / 100.0;
         new_angle = new_angle.round();

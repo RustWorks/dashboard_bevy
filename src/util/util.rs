@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 extern crate dashboard_derive;
-use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
+use bevy::{prelude::*, render::{pipeline::PipelineDescriptor, renderer::RenderResources,}, reflect::TypeUuid, };
 
 // use bimap::BiMap;
 use std::collections::HashMap;
@@ -75,6 +75,13 @@ impl KnobControl<i64> for LinearKnob<i64> {
         self.position
     }
 
+    fn remove_bounds(&mut self, maybe_speed: Option<f32>) {
+        self.bounds = None;
+        if let Some(speed) = maybe_speed {
+            self.speed = speed;
+        }
+    }
+
     fn set_bounds_and_speed(&mut self, input_bounds: Option<(i64, i64)>) {
         if let Some(bounds) = input_bounds {
             self.bounds = Some(bounds);
@@ -94,7 +101,7 @@ impl KnobControl<i64> for LinearKnob<i64> {
 
     // maps the position of the knob to the the angle given the bounds
     fn get_angle(&self) -> f32 {
-        let offset = -0.75;
+        let offset = 0.92 + std::f32::consts::PI ;
         let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
         let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
         let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
@@ -115,11 +122,24 @@ impl KnobControl<f64> for LinearKnob<f64> {
         self.position
     }
 
+    fn remove_bounds(&mut self, maybe_speed: Option<f32>) {
+        self.bounds = None;
+        if let Some(speed) = maybe_speed {
+            self.speed = speed;
+        }
+    }
+
     fn set_bounds_and_speed(&mut self, input_bounds: Option<(f64, f64)>) {
         if let Some(bounds) = input_bounds {
             self.bounds = Some(bounds);
         } else {
             let mut bounds = (0.0, 0.0);
+            if self.position == 0.0{
+                bounds.1 = 100.0;
+                self.bounds = Some(bounds);
+                return
+            }
+
             bounds.1 = 10.0_f64.powf(self.position.abs().log10().ceil());
             if self.position < 0.0 {
                 bounds.0 = -bounds.1;
@@ -131,7 +151,7 @@ impl KnobControl<f64> for LinearKnob<f64> {
     }
 
     fn get_angle(&self) -> f32 {
-        let offset = -0.75;
+        let offset = 0.92 + std::f32::consts::PI ;
         let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
         let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
         let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
@@ -144,6 +164,7 @@ pub trait KnobControl<T: Num> {
     fn get_value(&self) -> T;
     fn set_bounds_and_speed(&mut self, bounds: Option<(T, T)>);
     fn get_angle(&self) -> f32;
+    fn remove_bounds(&mut self, maybe_speed: Option<f32>);
 }
 
 // impl KnobControl<i32> for LinearKnob<i32> {
@@ -256,6 +277,19 @@ impl Debug for Nbr {
         }
     }
 }
+///// Shader parameters
+#[derive(TypeUuid, Debug, Clone, RenderResources, Component) ]
+#[uuid = "1e08866c-0b8a-437e-8bae-38844b21137e"]
+#[allow(non_snake_case)]
+pub struct KnobShader {
+    pub color: Color,
+    pub clearcolor: Color,
+    pub size: Vec2,
+    pub hovered: f32,
+    pub zoom: f32,
+    pub angle: f32,
+}
+
 
 //////////// dummy structs that we want to track with the dashboard /////////////
 //
@@ -285,6 +319,7 @@ pub struct MyComponent {
 
 //////////// dummy structs that we want to track with the dashboard /////////////
 // pub struct FieldKnobMap(pub BiMap<String, KnobId>);
+
 
 #[derive(Component)]
 pub struct KnobSprite {
@@ -327,11 +362,15 @@ pub struct RotatingKnob;
 #[derive(Component)]
 pub struct DashComponent;
 
+#[derive(Component)]
+pub struct SettingKnobAngleOnce(pub f32);
+
 pub type KnobId = u32;
 
 pub struct ClickedOnKnob(pub KnobId);
 pub struct ReleasedOnKnob(pub KnobId);
 pub struct SpawnKnobEvent(pub Vec2);
+
 pub struct KnobRotated(pub String, pub f32);
 pub struct SpawnLabels(pub Vec<(FieldName, FieldString)>, pub Entity); // entity is either the ui_res_board or ui_comp_board
                                                                        // pub struct SpawnComponentLabels(pub Vec<(FieldName, FieldValue)>, pub Entity);
