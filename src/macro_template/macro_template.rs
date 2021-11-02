@@ -61,6 +61,14 @@ impl From<i64> for MyEnum {
     }
 }
 
+impl MyComponent {
+    fn myenum_from_nbr(&mut self, nbr: Nbr) {
+        if let Nbr::Int64(inner) = nbr {
+            self.v3 = MyEnum::from(inner);
+        }
+    }
+}
+
 impl From<MyEnum> for f64 {
     fn from(my: MyEnum) -> f64 {
         // let length = MyEnum::iter().count();
@@ -117,19 +125,6 @@ pub struct AllDashRes {
 }
 
 impl AllDashRes {
-    // pub fn new(globals: Globals, other_globals: OtherGlobals) -> Self {
-    // Self {
-    //     globals: GlobalsNbr {
-    //         var1: Nbr::Float32(globals.var1),
-    //         var2: Nbr::UInt16(globals.var2),
-    //         var3: Nbr::Int64(globals.var3),
-    //     },
-    //     other_globals: OtherGlobalsNbr {
-    //         var1: Nbr::Float64(other_globals.var1),
-    //         var3: Nbr::UInt64(other_globals.var2),
-    //         var2: Nbr::UInt8(other_globals.var3),
-    //     },
-
     pub fn new() -> Self {
         Self {
             globals: GlobalsNbr {
@@ -214,7 +209,7 @@ pub struct AllDashComp {
 pub struct MyComponentNbr {
     pub y_position: Nbr,
     pub v2: Nbr,
-    pub v3: Nbr,
+    pub v3: MyEnum,
 }
 
 impl AllDashComp {
@@ -223,12 +218,12 @@ impl AllDashComp {
             my_component1: MyComponentNbr {
                 y_position: Nbr::Float32(0.0),
                 v2: Nbr::UInt16(0),
-                v3: Nbr::Int64(0),
+                v3: MyEnum::A,
             },
             my_component2: MyComponentNbr {
                 y_position: Nbr::Float32(0.0),
                 v2: Nbr::UInt16(0),
-                v3: Nbr::Int64(0),
+                v3: MyEnum::A,
             },
         }
     }
@@ -242,12 +237,12 @@ impl AllDashComp {
             my_component1: MyComponentNbr {
                 y_position: Nbr::Float32(my_component1.y_position),
                 v2: Nbr::UInt16(my_component1.v2),
-                v3: Nbr::Int64(my_component1.v3.into()),
+                v3: my_component1.v3,
             },
             my_component2: MyComponentNbr {
                 y_position: Nbr::Float32(my_component2.y_position),
                 v2: Nbr::UInt16(my_component2.v2),
-                v3: Nbr::Int64(my_component2.v3.into()),
+                v3: my_component2.v3,
             },
         }
     }
@@ -273,7 +268,7 @@ impl AllDashComp {
             "my_component1.v3" => {
                 let new_val_downcasted = *new_value.downcast_ref::<MyEnum>().unwrap();
                 my_component1.v3 = new_val_downcasted;
-                self.my_component1.v3 = Nbr::Int64(new_val_downcasted.into());
+                self.my_component1.v3 = new_val_downcasted.into();
             }
             "my_component2.y_position" => {
                 let new_val_downcasted = *new_value.downcast_ref::<f32>().unwrap();
@@ -288,7 +283,7 @@ impl AllDashComp {
             "my_component2.v3" => {
                 let new_val_downcasted = *new_value.downcast_ref::<MyEnum>().unwrap();
                 my_component2.v3 = new_val_downcasted;
-                self.my_component1.v3 = Nbr::Int64(new_val_downcasted.into());
+                self.my_component1.v3 = new_val_downcasted.into();
             }
 
             _ => {}
@@ -297,82 +292,85 @@ impl AllDashComp {
 }
 
 impl Globals {
-    pub fn modify_field(&mut self, field_name: &str, value_f64: f64) {
-        match field_name {
-            "var1" => self.var1 = value_f64 as f32,
-            "var2" => self.var2 = value_f64 as u16,
-            "var3" => self.var3 = value_f64 as i64,
-            _ => {}
-        }
+    pub fn modify_and_get_field(&mut self, field_name: &str, value_f64: f64) -> String {
+        let var_string = match field_name {
+            "var1" => {
+                self.var1 = value_f64 as f32;
+                self.var1.to_string()
+            }
+            "var2" => {
+                self.var2 = value_f64 as u16;
+                self.var2.to_string()
+            }
+            "var3" => {
+                self.var3 = value_f64 as i64;
+                self.var3.to_string()
+            }
+            _ => "".to_string(),
+        };
+
+        return format!("{:.5}", var_string.to_string());
     }
 }
 
 impl OtherGlobals {
-    pub fn modify_field(&mut self, field_name: &str, value_f64: f64) {
-        match field_name {
-            "var1" => self.var1 = value_f64 as f64,
-            "var2" => self.var2 = value_f64 as u64,
-            "var3" => self.var3 = value_f64 as u8,
-            _ => {}
-        }
+    pub fn modify_and_get_field(&mut self, field_name: &str, value_f64: f64) -> String {
+        let var_string = match field_name {
+            "var1" => {
+                self.var1 = value_f64 as f64;
+                self.var1.to_string()
+            }
+            "var2" => {
+                self.var2 = value_f64 as u64;
+                self.var2.to_string()
+            }
+            "var3" => {
+                self.var3 = value_f64 as u8;
+                self.var3.to_string()
+            }
+            _ => "".to_string(),
+        };
+
+        return format!("{:.5}", var_string);
     }
 }
 
 impl MyComponent {
-    pub fn modify_field(&mut self, field_name: &str, value_f64: f64) {
-        match field_name {
-            "y_position" => self.y_position = value_f64 as f32,
-            "v2" => self.v2 = value_f64 as u16,
-            "v3" => self.v3 = value_f64.into(),
-            _ => {}
-        }
+    pub fn modify_and_get_field(&mut self, field_name: &str, value_f64: f64) -> String {
+        let var_string = match field_name {
+            "y_position" => {
+                self.y_position = value_f64 as f32;
+                self.y_position.to_string()
+            }
+            "v2" => {
+                self.v2 = value_f64 as u16;
+                self.v2.to_string()
+            }
+            "v3" => {
+                self.v3 = MyEnum::from(value_f64);
+                format!("{:?}", self.v3)
+            }
+            _ => "".to_string(),
+        };
+
+        return format!("{:.5}", var_string.to_string());
     }
 }
 
-// struct dyn DashboardResource;
-
-// #[macro_export]
-// macro_rules! create_dashboard_resource {
-// ($($y:expr),*) => {{
-//     let mut dashboard_resource = DashboardResource::new();
-//     $(
-//         dashboard_resource.add_field($y);
-//     )*
-//     dashboard_resource
-// }};
-// }
-
-// pub fn pre_setup(mut commands: Commands, globals: Res<Globals>, other_globals: Res<OtherGlobals>) {
-//     let all_vars = AllDashRes::new(globals.clone(), other_globals.clone());
-//     commands.insert_resource(all_vars);
-// }
-
-// HEEEERE
-
-// if let Some(dash_resource) = value.downcast_ref::<yyy>() {
-//     for (j, inner_value) in dash_resource.iter_fields().enumerate() {
-//         let field_name = dash_resource.name_at(j).unwrap();
-
-//         // let mut field_name = stringify!(all_vars).to_string();
-//         println!("{}", field_name);
-//         // println!("{}", struct_name);
-//     }
-// }
-
 #[macro_export]
 macro_rules! attemp_downcasting {
-($eq:expr, $($t:ty),+) => {{
-    let mut maybe_value_f64: Option<f64> = None;
+($eq:expr, $($inner_value_type:ty),+) => {{
+    let mut maybe_string: Option<String> = None;
     let value = $eq;
     $(
-        if let Some(val) = value.downcast_ref::<$t>() {
-            let val_f64: f64 = (*val).into();
-            // println!("success f64: {:?}", val_f64);
-            maybe_value_f64 = Some(val_f64);
+        if let Some(val) = value.downcast_ref::<$inner_value_type>() {
+            let value_string = format!("{:?}", val);
+            println!("{:?}", value_string );
+            maybe_string = Some(value_string);
 
         }
     )+
-    maybe_value_f64
+    maybe_string
 }};
 }
 
@@ -380,17 +378,17 @@ macro_rules! attemp_downcasting {
 macro_rules! downcast_struct {
 ($value:expr, $($struct_type:ty),+)  => {{
 
-        let mut field_vec: Vec<(FieldName, FieldValue)> = Vec::new();
+        let mut field_vec: Vec<(FieldName, FieldString)> = Vec::new();
         $(
             if let Some(dash_resource) = $value.downcast_ref::<$struct_type>() {
                 //
                 for (j, inner_value) in dash_resource.iter_fields().enumerate() {
                     //
                     let field_name = dash_resource.name_at(j).unwrap();
-                    if let Some(f64_value) =
+                    if let Some(string_value) =
                         // procedural macro to generate the list of Dashboard implemented types
                         attemp_downcasting![inner_value, MyEnum, Nbr] {
-                        field_vec.push((field_name.to_string(), f64_value));
+                        field_vec.push((field_name.to_string(), string_value));
                     }
                 }
             }
@@ -411,12 +409,10 @@ pub fn dashboard_variables_setup(
     other_globals: Res<OtherGlobals>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut spawn_res_fields_event: EventWriter<SpawnLabels>,
-    keyboard_input: Res<Input<KeyCode>>,
     // mut spawn_comp_fields_event: EventWriter<SpawnComponentLabels>,
     // ui_res_query: Query<Entity, With<UiBoardResources>>,
     // ui_comp_query: Query<Entity, With<UiBoardComponents>>,
 ) {
-    // if keyboard_input.just_pressed(KeyCode::V) {
     let ui_board = commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -492,33 +488,34 @@ pub fn dashboard_variables_setup(
         .as_ref()
         .set_values_from_resources(globals.clone(), other_globals.clone());
 
-    let mut struct_field_vec: Vec<(String, FieldValue)> = Vec::new();
+    let mut struct_field_vec: Vec<(String, FieldString)> = Vec::new();
     //
     for (i, value) in all_vars_resources.iter_fields().enumerate() {
         //
         let mut struct_name = all_vars_resources.name_at(i).unwrap().to_string();
         //
         // procedural macro to generate the list of Dashboard implemented types
-        let mut v: Vec<(FieldName, FieldValue)> =
+        let mut v: Vec<(FieldName, FieldString)> =
             downcast_struct![value, GlobalsNbr, OtherGlobalsNbr];
         v = v
             .iter_mut()
-            .map(|(field_name, val_f64)| {
+            .map(|(field_name, val_string)| {
                 //
                 let mut struct_name_temp = struct_name.clone();
                 //
                 struct_name_temp.push('.');
                 struct_name_temp.push_str(field_name);
                 //
-                (struct_name_temp.to_owned(), val_f64.clone())
+                (struct_name_temp.to_owned(), val_string.clone())
             })
-            .collect::<Vec<(FieldName, FieldValue)>>();
+            .collect::<Vec<(FieldName, FieldString)>>();
+        // format!("{:.5}", value.to_string());
         struct_field_vec.append(&mut v);
     }
     spawn_res_fields_event.send(SpawnLabels(struct_field_vec.clone(), ui_res_entity));
     //////////////////////////////// resources /////////////////////////
 
-    //////////////////////////////// components /////////////////////////
+    //////////////////////////////// components //////////////////////////
     let comp_query = comp_query_set.q0();
     let mut comp_iter = comp_query.iter();
     let (_comp_entity, my_component1) = comp_iter.next().unwrap();
@@ -528,14 +525,14 @@ pub fn dashboard_variables_setup(
         .as_ref()
         .set_values_from_components(my_component1.clone(), my_component2.clone());
 
-    let mut struct_field_vec: Vec<(String, FieldValue)> = Vec::new();
+    let mut struct_field_vec: Vec<(String, FieldString)> = Vec::new();
     //
     for (i, value) in all_vars_components.iter_fields().enumerate() {
         //
         let mut struct_name = all_vars_components.name_at(i).unwrap().to_string();
         //
         // procedural macro to generate the list of Dashboard implemented types
-        let mut v: Vec<(FieldName, FieldValue)> = downcast_struct![value, MyComponentNbr];
+        let mut v: Vec<(FieldName, FieldString)> = downcast_struct![value, MyComponentNbr];
         v = v
             .iter_mut()
             .map(|(field_name, val_f64)| {
@@ -547,12 +544,11 @@ pub fn dashboard_variables_setup(
                 //
                 (struct_name_temp.to_owned(), val_f64.clone())
             })
-            .collect::<Vec<(FieldName, FieldValue)>>();
+            .collect::<Vec<(FieldName, FieldString)>>();
         struct_field_vec.append(&mut v);
     }
     spawn_res_fields_event.send(SpawnLabels(struct_field_vec, ui_comp_entity));
     //////////////////////////////// components /////////////////////////
-    // }
 }
 
 // model
@@ -581,27 +577,24 @@ pub fn update_dashboard_variables(
         let mut my_component1 = my_comp_iter.next().unwrap();
         let mut my_component2 = my_comp_iter.next().unwrap();
 
-        match ref_struct_name {
-            "globals" => {
-                globals.modify_field(&field_name, value_f64);
-                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
+        #[macro_export]
+        macro_rules! route_to_correct_variable {
+        ($($dash_struct:expr),+) => {{
+            match ref_struct_name {
+                $(
+                    stringify!($dash_struct) => {
+                        let string_value = $dash_struct.modify_and_get_field(&field_name, value_f64);
+                        changed_dash_var_event.send(ChangedDashVar(full_name.clone(), string_value))
+                    }
+                )+
+                _ => {}
             }
 
-            "other_globals" => {
-                other_globals.modify_field(&field_name, value_f64);
-                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
-            }
-
-            "my_component1" => {
-                my_component1.modify_field(&field_name, value_f64);
-                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
-            }
-            "my_component2" => {
-                my_component2.modify_field(&field_name, value_f64);
-                changed_dash_var_event.send(ChangedDashVar(full_name.clone(), value_f64))
-            }
-            _ => {}
+        }};
         }
+
+        // procedural macro
+        route_to_correct_variable![globals, other_globals, my_component1, my_component2];
     }
 }
 
@@ -620,8 +613,6 @@ pub fn attach_knob_to_field(
             Without<LinkedWithKnob>,
         ),
     >,
-    // mut field_knob_map: ResMut<FieldKnobMap>,
-    // mut released_on_knob_event_writer: EventReader<ReleasedOnKnob>,
 ) {
     for (button_entity, button_id) in button_query.iter_mut() {
         for (knob_sprite_entity, knob_sprite) in knob_sprite_query.iter() {
@@ -629,56 +620,73 @@ pub fn attach_knob_to_field(
 
             #[macro_export]
             macro_rules! replace_knob {
-                    ($($yy:expr, $xx:ty),*) => {{
-                        match full_name {
-                            $(
-                                stringify!($yy) => {
-                                    let mut new_knob: LinearKnob<$xx> = LinearKnob::new($yy as $xx);
-                                    new_knob.set_bounds_and_speed(None);
-                                    new_knob.set_position($yy as $xx);
 
-                                    new_knob.linked_field = Some(button_id.0.to_owned());
-                                    new_knob.id = knob_sprite.id.clone();
-                                    println!("attached to {:?}", new_knob.linked_field);
-                                    commands.entity(knob_sprite_entity).remove::<LinearKnob<f64>>();
-                                    commands.entity(knob_sprite_entity).remove::<LinearKnob<i64>>();
-                                    commands.entity(button_entity).insert(LinkedWithKnob(new_knob.id.clone()));
-                                    commands.entity(knob_sprite_entity).insert(new_knob);
-                                }
-                            )*
-                            _ => {}
-                        };
-                    }}
-                }
+                ($($value:expr, $ty_of_val:ty, $bounds:expr),*) => {{
+                    match full_name {
+                        $(
+                            stringify!($value) => {
+                                let mut new_knob: LinearKnob<$ty_of_val> = LinearKnob::new($value as $ty_of_val);
+
+                                new_knob.set_bounds_and_speed($bounds);
+                                new_knob.set_position($value as $ty_of_val);
+
+                                new_knob.linked_field = Some(button_id.0.to_owned());
+                                new_knob.id = knob_sprite.id.clone();
+                                println!("attached to {:?}", new_knob.linked_field);
+                                commands.entity(knob_sprite_entity).remove::<LinearKnob<f64>>();
+                                commands.entity(knob_sprite_entity).remove::<LinearKnob<i64>>();
+                                commands.entity(button_entity).insert(LinkedWithKnob(new_knob.id.clone()));
+                                commands.entity(knob_sprite_entity).insert(new_knob);
+                            }
+                        )*
+                        _ => {}
+                    };
+
+                }}
+            }
+
             let mut my_comp_iter = my_component_query.iter_mut();
             let my_component1 = my_comp_iter.next().unwrap();
             let my_component2 = my_comp_iter.next().unwrap();
 
+            // procedural macro
             replace_knob![
                 globals.var1,
                 f64,
+                None,
                 globals.var2,
                 i64,
+                None,
                 globals.var3,
                 i64,
+                None,
                 other_globals.var1,
                 i64,
+                None,
                 other_globals.var2,
                 f64,
+                None,
                 other_globals.var3,
                 i64,
+                None,
                 my_component1.y_position,
                 f64,
+                None,
                 my_component1.v2,
                 i64,
+                None,
                 my_component1.v3,
                 i64,
+                Some((0, (MyEnum::iter().len() - 1) as i64)),
                 my_component2.y_position,
                 f64,
+                None,
                 my_component2.v2,
                 i64,
+                None,
                 my_component2.v3,
-                i64
+                i64,
+                Some((0, (MyEnum::iter().len() - 1) as i64))
             ];
 
             // cleaning up

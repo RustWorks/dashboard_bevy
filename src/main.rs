@@ -213,7 +213,7 @@ fn spawn_text_label(
     for event in text_res_event_reader.iter() {
         let ui_entity = event.1;
         let scale = 0.75;
-        for (k, (key, value)) in event.0.iter().enumerate() {
+        for (k, (key, value_string)) in event.0.iter().enumerate() {
             // let mut ui_entity = ui_res_query.single();
 
             // let text_content = event.0.clone();
@@ -277,7 +277,7 @@ fn spawn_text_label(
                 .insert(ColorText)
                 .id();
 
-            let value_string = format!("{:.5}", value.to_string());
+            // let value_string = format!("{:.5}", value.to_string());
             let values_entity = commands
                 .spawn_bundle(TextBundle {
                     style: Style {
@@ -330,6 +330,7 @@ fn print_global(
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
     query: Query<(&LinearKnob<i64>)>,
+    comp_query: Query<&MyComponent, With<DashComponent>>,
     dynstruct: Res<DynamicStruct>,
 ) {
     if keyboard_input.just_pressed(KeyCode::V) {
@@ -338,24 +339,29 @@ fn print_global(
         for knob in query.iter() {
             println!("knob: {:?}", knob)
         }
+        for (k, my_component) in comp_query.iter().enumerate() {
+            println!("my_component {}: {:?}", k, my_component)
+        }
         // println!("dynstruct: {:?}", dynstruct.name());
     }
 }
 
 // view
+// needs refactoring
 fn update_dashboard_labels(
     mut query: Query<(&mut Text, &FieldValueText)>,
     mut changed_dash_var_event: EventReader<ChangedDashVar>,
 ) {
     // iterates over all text fields, optimization required
-    for ChangedDashVar(field_name, value_f64) in changed_dash_var_event.iter() {
+    for ChangedDashVar(field_name, value_string) in changed_dash_var_event.iter() {
         for (mut text, struct_key) in query.iter_mut() {
             // println!("struct_key : {:?}", &struct_key.0);
 
             if &struct_key.0 == field_name {
                 //
-                let value_string = format!("{:.5}", value_f64.to_string());
-                text.sections[0].value = value_string;
+                // println!("field_name : {:?}", &field_name);
+                // let value_string = format!("{:.5}", value_f64.to_string());
+                text.sections[0].value = value_string.to_owned();
             }
         }
     }

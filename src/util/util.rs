@@ -6,6 +6,7 @@ use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
 
 // use bimap::BiMap;
 use std::collections::HashMap;
+use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 // use bevy::{
@@ -79,7 +80,10 @@ impl KnobControl<i64> for LinearKnob<i64> {
             self.bounds = Some(bounds);
         } else {
             let mut bounds = (0, 0);
+
             bounds.1 = 10_i64.pow((self.position.abs() as f32).log10().ceil() as u32);
+            println!("{:?}", bounds.1);
+
             if self.position < 0 {
                 bounds.0 = -bounds.1;
             }
@@ -181,6 +185,8 @@ pub enum MyEnum {
     A,
     B,
     C,
+    D,
+    F,
 }
 
 pub struct Cursor {
@@ -199,7 +205,7 @@ impl Default for Cursor {
     }
 }
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Clone, Copy)]
 pub enum Nbr {
     Float32(f32),
     Float64(f64),
@@ -230,6 +236,27 @@ impl Into<f64> for Nbr {
     }
 }
 
+impl Debug for Nbr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // Self::Float32(v) => write!(f, "{}", v),
+            // Self::Float64(v) => write!(f, "{}", v),
+            // Self::Int8(v) => write!(f, "{}", v),
+            // _ => write!(f, "{}", 0),
+            Self::Float32(v) => write!(f, "{}", v),
+            Self::Float64(v) => write!(f, "{}", v),
+            Self::Int8(v) => write!(f, "{}", v),
+            Self::Int16(v) => write!(f, "{}", v),
+            Self::Int32(v) => write!(f, "{}", v),
+            Self::Int64(v) => write!(f, "{}", v),
+            Self::UInt8(v) => write!(f, "{}", v),
+            Self::UInt16(v) => write!(f, "{}", v),
+            Self::UInt32(v) =>write!(f, "{}", v),
+            Self::UInt64(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 //////////// dummy structs that we want to track with the dashboard /////////////
 //
 // resource
@@ -255,6 +282,7 @@ pub struct MyComponent {
     pub v2: u16,
     pub v3: MyEnum,
 }
+
 //////////// dummy structs that we want to track with the dashboard /////////////
 // pub struct FieldKnobMap(pub BiMap<String, KnobId>);
 
@@ -305,13 +333,14 @@ pub struct ClickedOnKnob(pub KnobId);
 pub struct ReleasedOnKnob(pub KnobId);
 pub struct SpawnKnobEvent(pub Vec2);
 pub struct KnobRotated(pub String, pub f32);
-pub struct SpawnLabels(pub Vec<(FieldName, FieldValue)>, pub Entity); // entity is either the ui_res_board or ui_comp_board
-                                                                      // pub struct SpawnComponentLabels(pub Vec<(FieldName, FieldValue)>, pub Entity);
+pub struct SpawnLabels(pub Vec<(FieldName, FieldString)>, pub Entity); // entity is either the ui_res_board or ui_comp_board
+                                                                       // pub struct SpawnComponentLabels(pub Vec<(FieldName, FieldValue)>, pub Entity);
 
-pub struct ChangedDashVar(pub FieldName, pub FieldValue);
+pub struct ChangedDashVar(pub FieldName, pub FieldString);
 
 pub type FieldName = String;
 pub type FieldValue = f64;
+pub type FieldString = String;
 
 pub struct ButtonMaterials {
     pub normal: Handle<ColorMaterial>,
