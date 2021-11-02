@@ -1,7 +1,7 @@
 # dashboard
 A Bevy Engine UI with knobs and graphs, inspired by sound design tools
 
-## [Bevy Pen Tool](https://github.com/eliotbo/bevy_pen_tool)
+# [Bevy Pen Tool](https://github.com/eliotbo/bevy_pen_tool)
 
 Bevy Pen Tool is a plugin that helps developers make 2D paths using 
 Bezier curves. Its user interface provides functionality for 
