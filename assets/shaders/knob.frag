@@ -19,8 +19,8 @@ layout(set = 2, binding = 2) uniform KnobShader_zoom{
 layout(set = 2, binding = 3) uniform KnobShader_hovered{
     float hovered;
 };
-layout(set = 2, binding = 4) uniform KnobShader_size{
-    float size;
+layout(set = 2, binding = 4) uniform KnobShader_bounds{
+    vec2 bounds;
 };
 
 layout(set = 2, binding = 5) uniform KnobShader_angle{
@@ -54,9 +54,9 @@ float sdSquareEdge(vec2 p, float r, float w)
 }
 /////////////// unused ///////////////
 
-float sdArc( in vec2 p, in vec2 sca, in vec2 scb, in float ra, float rb )
+float sdArc( in vec2 p,  in vec2 scb, in float ra, float rb )
 {
-    p *= mat2(sca.x,sca.y,-sca.y,sca.x);
+    
     p.x = abs(p.x);
     float k = (scb.y*p.x>scb.x*p.y) ? dot(p,scb) : length(p);
     return sqrt( dot(p,p) + ra*ra - 2.0*ra*k ) - rb;
@@ -69,37 +69,60 @@ float sdCircle( vec2 p, float r)
     return d;
 }
 
+float opOnion( in vec2 p, in float w, in float r )
+{
+  return abs(sdCircle(p, r)) - w;
+}
 
 void main( )
 {
     vec2 pos = vec2(0.5, 0.5);
     vec2 uv_original = (Vertex_Uv.xy-pos);
 
-    // float d = sdArc(uv_original, vec2(0.5,0.5), vec2(0.5,0.5), 0.2, 0.1);
-    // vec4 arc_color = mix( clear_color, color ,   d );
-    // o_Target = arc_color;
 
-        // normalized pixel coordinates
-    vec2 p = uv_original * 2; //(gl_FragCoord*2.0-iResolution.xy)/iResolution.y;
 
-    // float angle2 = 45.0 * PI / 180.0;
+    vec2 p = uv_original * 2; 
+    
 
     // animation
-    float time = 10.0;
-    float ta =  3.14*(0.5+0.5*cos(time*0.52+2.0));
-    float tb = angle; //3.14*(0.5+0.5*cos(time*0.31+2.0));
-    float rb = 0.15*(0.5+0.5*cos(time*0.41+3.0));
-    
-    // distance
-    float d = sdArc(p,vec2(sin(ta),cos(ta)),vec2(sin(tb),cos(tb)), 0.7, rb);
-    
-    // coloring
-    // vec4 col = vec4(1.0) - sign(d)*vec4(0.1,0.4,0.7, 1.0);
-	// col *= 1.0 - exp(-2.0*abs(d));
-	// col *= 0.8 + 0.2*cos(128.0*abs(d));
-	vec4 col = mix( clear_color, color, 1.0-smoothstep(0.0,0.15,d) );
+    // float angle2 = (angle  / 10 + 3 * PI / 2);
+    // float angle3 =  (angle - bounds.x) / (bounds.y * 1.1 - bounds.x) * PI * 6;
+    float angle3 = 0;
+    float offset = 0.1;
+    if (bounds.x == bounds.y) {
+        angle3 = 0 + 3 * PI / 2;
+    } else {
+        angle3 = PI * (angle ) * (1 - offset )  + 3 * PI / 2;
+    }
 
+    
+    float time = 10.0;
+    float ta =   -angle3  - offset * PI  ; 
+    float tb = angle3 + PI / 2 ; 
+    float rb = 0.015;   
+    float smooth_dist = 0.06;
+    vec2 sca = vec2(sin(ta),cos(ta));
+
+    p = p * mat2(sca.x,sca.y,-sca.y,sca.x);
+    vec2 p2 = p * mat2(sca.x,sca.y,-sca.y,sca.x);
+
+    
+    float line_off = 0.9;
+    vec2 offset_ang = vec2(sin(offset * PI * line_off + PI /2),cos(offset * PI * line_off+ PI /2));
+    p2 = p2 * mat2(offset_ang.x,offset_ang.y,-offset_ang.y,offset_ang.x);
+
+    // distance
+    float d = sdArc(p,vec2(sin(tb),cos(tb)), 0.7, rb);
+    float dc = opOnion(p, 0.05, 0.58);
+    float db = sdBox(p2 - vec2(0.0,0.4), vec2(0.03,0.2));
+
+    vec4 background_color = vec4(clear_color.xyz, 0.0);
+	vec4 col = mix( background_color, color, 1.0-smoothstep(0.0,smooth_dist,d) );
+    col = mix(col , vec4(0.0,0.0,0.0,1.0), 1.0 - smoothstep(0.0,smooth_dist,dc));
+    col = mix(col , vec4(0.0,0.0,0.0,1.0), 1.0 - smoothstep(0.0,smooth_dist,db));
 
 
 	o_Target = col;
+
+
 }

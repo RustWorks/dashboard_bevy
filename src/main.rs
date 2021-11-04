@@ -12,10 +12,9 @@ use bevy::{
     render::{
         camera::OrthographicProjection,
         // pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
-        pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines, },
-        shader::ShaderStages,
+        pipeline::{PipelineDescriptor, RenderPipeline, RenderPipelines},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph},
-
+        shader::ShaderStages,
     },
 };
 // use bimap::BiMap;
@@ -37,7 +36,6 @@ fn main() {
         .add_event::<KnobRotated>()
         .add_event::<ReleasedOnKnob>()
         .add_event::<ChangedDashVar>()
-
         .init_resource::<ButtonMaterials>()
         .insert_resource(DynamicStruct::default())
         .insert_resource(Maps::default())
@@ -50,9 +48,9 @@ fn main() {
         })
         .insert_resource(Cursor::default())
         .insert_resource(OtherGlobals {
-            var1: 8f64,
-            var2: 22u64,
-            var3: 44u8,
+            var1: 15.5_f64,
+            var2: 22_u64,
+            var3: 44_u8,
         })
         .insert_resource(AllDashRes::new())
         .insert_resource(AllDashComp::new())
@@ -116,8 +114,7 @@ fn setup(
         flip: false,
     }));
 
-    maps.mesh_handles
-        .insert("knob", knob_mesh);
+    maps.mesh_handles.insert("knob", knob_mesh);
 
     // commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     commands.spawn_bundle(OrthographicCameraBundle {
@@ -151,7 +148,7 @@ fn setup(
     maps.mesh_handles
         .insert("fields_button", fields_button_mesh);
 
-    let texture_handle = asset_server.load("textures/octopus.png");
+    let texture_handle = asset_server.load("textures/knob.png");
     let sprite_size = 100.0;
     commands
         .spawn_bundle(SpriteBundle {
@@ -552,7 +549,7 @@ fn spawn_knob(
             clearcolor: Color::hex("6e7f80").unwrap(),
             zoom: 1.0_f32,
             hovered: 0.0_f32,
-            size: Vec2::new(radius, radius),
+            bounds: Vec2::new(0.0, 0.0),
             angle: 0.0_f32,
         };
 
@@ -562,11 +559,7 @@ fn spawn_knob(
         let knob_pipeline_handle = maps.pipeline_handles["knobs"].clone();
 
         let pipelines =
-            RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                knob_pipeline_handle,
-            )]);
-
-
+            RenderPipelines::from_pipelines(vec![RenderPipeline::new(knob_pipeline_handle)]);
 
         let knob_mesh_handle = maps.mesh_handles["knob"].clone();
         // a mesh that acts like a button
@@ -591,16 +584,36 @@ fn spawn_knob(
     }
 }
 
-fn modify_angle(globals: Res<Globals>,mut my_shaders_params: ResMut<Assets<KnobShader>>, 
-    mut commands: Commands, mut query: Query<&Handle<KnobShader>>) {
-    for mut knob_shader_handle in query.iter_mut() {
-        let shader_parmas = my_shaders_params.get_mut(knob_shader_handle).unwrap();
-        let mut angle = globals.var1;
-        shader_parmas.angle = angle;
+// TODO: only run when knob has changed
+fn modify_angle(
+    globals: Res<Globals>,
+    other_globals: Res<OtherGlobals>,
+    mut my_shaders_params: ResMut<Assets<KnobShader>>,
+    mut commands: Commands,
+    mut query: Query<
+        (
+            &Handle<KnobShader>,
+            Option<&LinearKnob<f64>>,
+            Option<&LinearKnob<i64>>,
+        ),
+        With<RotatingKnob>,
+    >,
+) {
+    for (mut knob_shader_handle, maybe_knob_f64, maybe_knpb_i64) in query.iter_mut() {
+        let shader_params = my_shaders_params.get_mut(knob_shader_handle).unwrap();
+
+        if let Some(knob) = maybe_knob_f64 {
+            // println!("value: {:?}", knob.get_angle());
+            // println!("bounds: {:?}", shader_params.bounds);
+            let knob_angle = knob.get_angle() as f32;
+            shader_params.angle = knob_angle;
+        } else if let Some(knob) = maybe_knpb_i64 {
+            // println!("bounds: {:?}", shader_params.bounds);
+            // println!("value: {:?}", knob.get_angle());
+            let knob_angle = knob.get_angle() as f32;
+            shader_params.angle = knob_angle;
+        }
     }
-    
-
-
 }
 
 fn knob_action(
@@ -647,14 +660,36 @@ fn knob_action(
     }
 }
 
-fn set_knob_angle_once(mut commands: Commands, mut query: Query<(Entity, &mut Transform, &SettingKnobAngleOnce)>) {
-    for (entity, mut transform, setting_knob_angle_component) in query.iter_mut() {
-        let angle: f32 = setting_knob_angle_component.0;
+fn set_knob_angle_once(
+    mut commands: Commands,
+    query: Query<
+        (
+            Entity,
+            &Handle<KnobShader>,
+            Option<&LinearKnob<f64>>,
+            Option<&LinearKnob<i64>>,
+        ),
+        With<SettingKnobAngleOnce>,
+    >,
+    mut my_shaders_params: ResMut<Assets<KnobShader>>,
+) {
+    for (entity, shader_params_handle, maybe_knob_f64, maybe_knob_i64) in query.iter() {
+        let mut shader_params = my_shaders_params.get_mut(shader_params_handle).unwrap();
+        // let angle: f32 = setting_knob_angle_component.0;
+        if let Some(knob_f64) = maybe_knob_f64 {
+            if let Some(bounds) = knob_f64.bounds {
+                shader_params.bounds = Vec2::new(bounds.0 as f32, bounds.1 as f32);
+            }
+            shader_params.angle = knob_f64.get_angle();
+        }
+        if let Some(knob_i64) = maybe_knob_i64 {
+            if let Some(bounds) = knob_i64.bounds {
+                shader_params.bounds = Vec2::new(bounds.0 as f32, bounds.1 as f32);
+            }
+            shader_params.angle = knob_i64.get_angle();
+        }
 
-        transform.rotation = Quat::from_rotation_z(-angle);
         commands.entity(entity).remove::<SettingKnobAngleOnce>();
-
-
     }
 }
 
@@ -672,12 +707,12 @@ fn move_knob(
             (knob_sprite.previous_position + cursor.pos_relative_to_click).extend(0.0);
     }
 
-    for ( mut transform, mut lin_knob) in query_set.q0().iter_mut() {
+    for (mut transform, mut lin_knob) in query_set.q0().iter_mut() {
         let mut new_angle = lin_knob.previous_position as f32
             + lin_knob.speed * cursor.pos_relative_to_click.y / 100.0;
         new_angle = new_angle.round();
         lin_knob.set_position(new_angle as i64);
-        transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
+        // transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
 
         // println!("{:?}", new_angle);
     }
@@ -687,7 +722,7 @@ fn move_knob(
             + lin_knob.speed * cursor.pos_relative_to_click.y / 100.0;
 
         lin_knob.set_position(new_angle as f64);
-        transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
+        // transform.rotation = Quat::from_rotation_z(-lin_knob.get_angle());
 
         // println!("{:?}", new_angle);
     }

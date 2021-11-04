@@ -515,7 +515,7 @@ pub fn dashboard_variables_setup(
     spawn_res_fields_event.send(SpawnLabels(struct_field_vec.clone(), ui_res_entity));
     //////////////////////////////// resources /////////////////////////
 
-    //////////////////////////////// components //////////////////////////
+    //////////////////////////////// components ////////////////////////
     let comp_query = comp_query_set.q0();
     let mut comp_iter = comp_query.iter();
     let (_comp_entity, my_component1) = comp_iter.next().unwrap();
@@ -603,16 +603,28 @@ pub fn attach_knob_to_field(
     globals: Res<Globals>,
     other_globals: Res<OtherGlobals>,
     mut my_component_query: Query<&mut MyComponent, With<DashComponent>>,
-    knob_sprite_query: Query<(Entity, &KnobSprite, Option<&LinearKnob<f64>>, Option<&LinearKnob<i64>>), With<LinkingFieldToKnob>>,
+    knob_sprite_query: Query<
+        (
+            Entity,
+            &KnobSprite,
+            Option<&LinearKnob<f64>>,
+            Option<&LinearKnob<i64>>,
+        ),
+        With<LinkingFieldToKnob>,
+    >,
     // mut knob_query: Query<(Entity, &mut Transform, &mut LinearKnob<f32>), With<LinkingFieldToKnob>>,
-    
-    mut new_button_query:  Query<(Entity, &ButtonId),  
-            (With<Button>,
+    mut new_button_query: Query<
+        (Entity, &ButtonId),
+        (
+            With<Button>,
             With<LinkingFieldToKnob>,
-            Without<LinkedWithKnob>)
-        >,
-    other_button_query:Query<(Entity, &ButtonId), (With<LinkedWithKnob>, Without<LinkingFieldToKnob>)>,
-
+            Without<LinkedWithKnob>,
+        ),
+    >,
+    other_button_query: Query<
+        (Entity, &ButtonId),
+        (With<LinkedWithKnob>, Without<LinkingFieldToKnob>),
+    >,
     // mut button_query: QuerySet<
     //     (QueryState<(Entity, &ButtonId),
     //     (
@@ -623,8 +635,11 @@ pub fn attach_knob_to_field(
     //     QueryState<(Entity, &ButtonId), With<LinkedWithKnob>>)
     // >,
 ) {
-    for (button_entity, button_id) in new_button_query.iter_mut() { //button_query.q0().iter_mut() {
-        for (knob_sprite_entity, knob_sprite, maybe_knob_f64, maybe_knob_i64) in knob_sprite_query.iter() {
+    for (button_entity, button_id) in new_button_query.iter_mut() {
+        //button_query.q0().iter_mut() {
+        for (knob_sprite_entity, knob_sprite, maybe_knob_f64, maybe_knob_i64) in
+            knob_sprite_query.iter()
+        {
             let full_name = button_id.0.as_str();
 
             #[macro_export]
@@ -648,15 +663,15 @@ pub fn attach_knob_to_field(
                                 // remove the LinkedWithKnob on the button that was previously linked to the knob
                                 if let Some(knob) = maybe_knob_f64 {
                                     if let Some(linked_field)  = &knob.linked_field {
-                                    
+
                                         for (other_entity, other_button_id) in other_button_query.iter() { //} button_query.q1().iter() {
                                         // if other_button_id.0 == button_id.0 {
-                                        
-                                        
+
+
                                             // println!("succes f64: {} ----- {}", linked_field,  other_button_id.0.as_str());
                                             if linked_field == other_button_id.0.as_str() {
                                                 commands.entity(other_entity).remove::<LinkedWithKnob>();
-                                                
+
                                             }
                                         }
                                     }
@@ -665,19 +680,19 @@ pub fn attach_knob_to_field(
                                         for (other_entity, other_button_id) in other_button_query.iter() { //} button_query.q1().iter() {
                                             if linked_field == other_button_id.0.as_str() {
                                                 commands.entity(other_entity).remove::<LinkedWithKnob>();
-                                                
+
                                             }
                                         }
                                     }
-                                       
+
                                 }
                                 commands.entity(button_entity).insert(LinkedWithKnob(new_knob.id.clone()));
                                 commands.entity(button_entity).remove::<LinkingFieldToKnob>();
 
                                 commands.entity(knob_sprite_entity).remove::<LinearKnob<f64>>();
                                 commands.entity(knob_sprite_entity).remove::<LinearKnob<i64>>();
-                                
-                                commands.entity(knob_sprite_entity).insert(SettingKnobAngleOnce(new_knob.get_angle()));
+
+                                commands.entity(knob_sprite_entity).insert(SettingKnobAngleOnce);
                                 commands.entity(knob_sprite_entity).insert(new_knob);
 
                             }
@@ -704,7 +719,7 @@ pub fn attach_knob_to_field(
                 i64,
                 None,
                 other_globals.var1,
-                i64,
+                f64,
                 None,
                 other_globals.var2,
                 f64,

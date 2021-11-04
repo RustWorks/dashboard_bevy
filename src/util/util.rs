@@ -2,7 +2,11 @@
 
 use std::fmt::Debug;
 extern crate dashboard_derive;
-use bevy::{prelude::*, render::{pipeline::PipelineDescriptor, renderer::RenderResources,}, reflect::TypeUuid, };
+use bevy::{
+    prelude::*,
+    reflect::TypeUuid,
+    render::{pipeline::PipelineDescriptor, renderer::RenderResources},
+};
 
 // use bimap::BiMap;
 use std::collections::HashMap;
@@ -101,9 +105,9 @@ impl KnobControl<i64> for LinearKnob<i64> {
 
     // maps the position of the knob to the the angle given the bounds
     fn get_angle(&self) -> f32 {
-        let offset = 0.92 + std::f32::consts::PI ;
-        let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
-        let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
+        let offset = 0.0; //0.92 + std::f32::consts::PI;
+        let zero = 0.0; //2.0 * std::f32::consts::PI * 0.1 + offset;
+        let one = 1.0; //2.0 * std::f32::consts::PI * 0.9 + offset;
         let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
         return zero + (one - zero) * (self.position as f32 / range as f32);
     }
@@ -134,10 +138,10 @@ impl KnobControl<f64> for LinearKnob<f64> {
             self.bounds = Some(bounds);
         } else {
             let mut bounds = (0.0, 0.0);
-            if self.position == 0.0{
+            if self.position == 0.0 {
                 bounds.1 = 100.0;
                 self.bounds = Some(bounds);
-                return
+                return;
             }
 
             bounds.1 = 10.0_f64.powf(self.position.abs().log10().ceil());
@@ -150,12 +154,21 @@ impl KnobControl<f64> for LinearKnob<f64> {
         }
     }
 
+    // fn get_angle(&self) -> f32 {
+    //     let offset = 0.92 + std::f32::consts::PI;
+    //     let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
+    //     let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
+    //     let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
+    //     return zero + (one - zero) * (self.position as f32 / range as f32);
+    // }
+
+    // maps the position of the knob to the the angle given the bounds
     fn get_angle(&self) -> f32 {
-        let offset = 0.92 + std::f32::consts::PI ;
-        let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
-        let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
+        // let offset = 0.0; //0.92 + std::f32::consts::PI;
+        // let zero = 0.; //2.0 * std::f32::consts::PI * 0.1 + offset;
+        // let one = 1.0; //2.0 * std::f32::consts::PI * 0.9 + offset;
         let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
-        return zero + (one - zero) * (self.position as f32 / range as f32);
+        return (self.position as f32 - self.bounds.unwrap().0 as f32) / range as f32;
     }
 }
 
@@ -272,24 +285,23 @@ impl Debug for Nbr {
             Self::Int64(v) => write!(f, "{}", v),
             Self::UInt8(v) => write!(f, "{}", v),
             Self::UInt16(v) => write!(f, "{}", v),
-            Self::UInt32(v) =>write!(f, "{}", v),
+            Self::UInt32(v) => write!(f, "{}", v),
             Self::UInt64(v) => write!(f, "{}", v),
         }
     }
 }
 ///// Shader parameters
-#[derive(TypeUuid, Debug, Clone, RenderResources, Component) ]
+#[derive(TypeUuid, Debug, Clone, RenderResources, Component)]
 #[uuid = "1e08866c-0b8a-437e-8bae-38844b21137e"]
 #[allow(non_snake_case)]
 pub struct KnobShader {
     pub color: Color,
     pub clearcolor: Color,
-    pub size: Vec2,
+    pub bounds: Vec2,
     pub hovered: f32,
     pub zoom: f32,
     pub angle: f32,
 }
-
 
 //////////// dummy structs that we want to track with the dashboard /////////////
 //
@@ -319,7 +331,6 @@ pub struct MyComponent {
 
 //////////// dummy structs that we want to track with the dashboard /////////////
 // pub struct FieldKnobMap(pub BiMap<String, KnobId>);
-
 
 #[derive(Component)]
 pub struct KnobSprite {
@@ -363,7 +374,10 @@ pub struct RotatingKnob;
 pub struct DashComponent;
 
 #[derive(Component)]
-pub struct SettingKnobAngleOnce(pub f32);
+pub struct SettingKnobAngleOnce;
+
+// #[derive(Component)]
+// pub struct SettingKnobAngleOnce2<T: Num + Copy>(pub LinearKnob<T>);
 
 pub type KnobId = u32;
 
