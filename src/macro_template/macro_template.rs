@@ -8,13 +8,12 @@ use strum::IntoEnumIterator;
 // use std::any::Any;
 // use strum_macros::EnumIter;
 
+// fn sort_values(&self)
+// sorting: sort_by(|x,y| x.partial_cmp(y))
 impl Default for MyEnum {
     fn default() -> Self {
         Self::A
     }
-
-    // fn sort_values(&self)
-    // sorting: sort_by(|x,y| x.partial_cmp(y))
 }
 
 impl From<MyEnum> for i64 {
@@ -61,14 +60,6 @@ impl From<i64> for MyEnum {
     }
 }
 
-impl MyComponent {
-    fn myenum_from_nbr(&mut self, nbr: Nbr) {
-        if let Nbr::Int64(inner) = nbr {
-            self.v3 = MyEnum::from(inner);
-        }
-    }
-}
-
 impl From<MyEnum> for f64 {
     fn from(my: MyEnum) -> f64 {
         // let length = MyEnum::iter().count();
@@ -101,6 +92,14 @@ impl From<f64> for MyEnum {
             }
         }
         e
+    }
+}
+
+impl MyComponent {
+    fn myenum_from_nbr(&mut self, nbr: Nbr) {
+        if let Nbr::Int64(inner) = nbr {
+            self.v3 = MyEnum::from(inner);
+        }
     }
 }
 
@@ -154,49 +153,6 @@ impl AllDashRes {
             },
         }
     }
-
-    pub fn modify_field(
-        &mut self,
-        field_name: &str,
-        new_value: Box<dyn Reflect>,
-        globals: &mut Globals,
-        other_globals: &mut OtherGlobals,
-    ) {
-        match field_name {
-            "globals.var1" => {
-                let new_val_downcasted = *new_value.downcast_ref::<f32>().unwrap();
-                globals.var1 = new_val_downcasted;
-                self.globals.var1 = Nbr::Float32(new_val_downcasted);
-            }
-            "globals.var2" => {
-                let new_val_downcasted = *new_value.downcast_ref::<u16>().unwrap();
-                globals.var2 = new_val_downcasted;
-                self.globals.var2 = Nbr::UInt16(new_val_downcasted);
-            }
-            "globals.var3" => {
-                let new_val_downcasted = *new_value.downcast_ref::<i64>().unwrap();
-                globals.var3 = new_val_downcasted;
-                self.globals.var3 = Nbr::Int64(new_val_downcasted);
-            }
-            "other_globals.var1" => {
-                let new_val_downcasted = *new_value.downcast_ref::<f64>().unwrap();
-                other_globals.var1 = new_val_downcasted;
-                self.other_globals.var1 = Nbr::Float64(new_val_downcasted);
-            }
-            "other_globals.var2" => {
-                let new_val_downcasted = *new_value.downcast_ref::<u64>().unwrap();
-                other_globals.var2 = new_val_downcasted;
-                self.other_globals.var2 = Nbr::UInt64(new_val_downcasted);
-            }
-            "other_globals.var3" => {
-                let new_val_downcasted = *new_value.downcast_ref::<u8>().unwrap();
-                other_globals.var3 = new_val_downcasted;
-                self.other_globals.var3 = Nbr::UInt8(new_val_downcasted);
-            }
-
-            _ => {}
-        }
-    }
 }
 
 #[derive(Reflect)]
@@ -244,49 +200,6 @@ impl AllDashComp {
                 v2: Nbr::UInt16(my_component2.v2),
                 v3: my_component2.v3,
             },
-        }
-    }
-
-    pub fn modify_field(
-        &mut self,
-        field_name: &str,
-        new_value: Box<dyn Reflect>,
-        my_component1: &mut MyComponent,
-        my_component2: &mut MyComponent,
-    ) {
-        match field_name {
-            "my_component1.y_position" => {
-                let new_val_downcasted = *new_value.downcast_ref::<f32>().unwrap();
-                my_component1.y_position = new_val_downcasted;
-                self.my_component1.y_position = Nbr::Float32(new_val_downcasted.into());
-            }
-            "my_component1.v2" => {
-                let new_val_downcasted = *new_value.downcast_ref::<u16>().unwrap();
-                my_component1.v2 = new_val_downcasted;
-                self.my_component1.v2 = Nbr::UInt16(new_val_downcasted.into());
-            }
-            "my_component1.v3" => {
-                let new_val_downcasted = *new_value.downcast_ref::<MyEnum>().unwrap();
-                my_component1.v3 = new_val_downcasted;
-                self.my_component1.v3 = new_val_downcasted.into();
-            }
-            "my_component2.y_position" => {
-                let new_val_downcasted = *new_value.downcast_ref::<f32>().unwrap();
-                my_component2.y_position = new_val_downcasted;
-                self.my_component1.y_position = Nbr::Float32(new_val_downcasted.into());
-            }
-            "my_component2.v2" => {
-                let new_val_downcasted = *new_value.downcast_ref::<u16>().unwrap();
-                my_component2.v2 = new_val_downcasted;
-                self.my_component1.v2 = Nbr::UInt16(new_val_downcasted.into());
-            }
-            "my_component2.v3" => {
-                let new_val_downcasted = *new_value.downcast_ref::<MyEnum>().unwrap();
-                my_component2.v3 = new_val_downcasted;
-                self.my_component1.v3 = new_val_downcasted.into();
-            }
-
-            _ => {}
         }
     }
 }

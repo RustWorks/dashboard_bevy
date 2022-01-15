@@ -154,14 +154,6 @@ impl KnobControl<f64> for LinearKnob<f64> {
         }
     }
 
-    // fn get_angle(&self) -> f32 {
-    //     let offset = 0.92 + std::f32::consts::PI;
-    //     let zero = 2.0 * std::f32::consts::PI * 0.1 + offset;
-    //     let one = 2.0 * std::f32::consts::PI * 0.9 + offset;
-    //     let range = self.bounds.unwrap().1 - self.bounds.unwrap().0;
-    //     return zero + (one - zero) * (self.position as f32 / range as f32);
-    // }
-
     // maps the position of the knob to the the angle given the bounds
     fn get_angle(&self) -> f32 {
         // let offset = 0.0; //0.92 + std::f32::consts::PI;
@@ -171,6 +163,8 @@ impl KnobControl<f64> for LinearKnob<f64> {
         return (self.position as f32 - self.bounds.unwrap().0 as f32) / range as f32;
     }
 }
+
+// Logarithm Knob could have an increasing width for the shadered red arc
 
 pub trait KnobControl<T: Num> {
     fn set_position(&mut self, value: T);

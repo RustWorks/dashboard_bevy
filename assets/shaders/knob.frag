@@ -111,7 +111,7 @@ void main( )
     vec2 offset_ang = vec2(sin(offset * PI * line_off + PI /2),cos(offset * PI * line_off+ PI /2));
     p2 = p2 * mat2(offset_ang.x,offset_ang.y,-offset_ang.y,offset_ang.x);
 
-    // distance
+
     float d = sdArc(p,vec2(sin(tb),cos(tb)), 0.7, rb);
     float dc = opOnion(p, 0.05, 0.58);
     float db = sdBox(p2 - vec2(0.0,0.4), vec2(0.03,0.2));
